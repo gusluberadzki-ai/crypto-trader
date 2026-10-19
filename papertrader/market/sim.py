@@ -80,7 +80,10 @@ class SimSource:
             t += self.step
         self.next_open = t
 
-    async def fetch_klines(self, symbol: str, start_ms: int, end_ms: int | None = None) -> list[dict]:
+    async def fetch_klines(self, symbol: str, start_ms: int, end_ms: int | None = None,
+                           interval: str | None = None) -> list[dict]:
+        if interval and interval != self.interval:
+            return []  # sim mode only generates the trading interval
         self._ensure_history(start_ms)
         return [dict(b) for b in self.history[symbol]
                 if b["open_time"] >= start_ms and (end_ms is None or b["open_time"] <= end_ms)]

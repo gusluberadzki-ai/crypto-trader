@@ -75,7 +75,13 @@ def run_backtest(cfg: dict, frames: dict[str, pd.DataFrame], days: int | None = 
     # ---------------- simulation
     broker, risk = PaperBroker(cfg), RiskManager(cfg)
     core = TradingCore(cfg, broker, risk)
-    strat = build_strategies(cfg, mm)
+    meta = None
+    if "adaptive_trend" in names:
+        from .meta import MetaLearner, daily_closes
+        meta = MetaLearner()
+        meta.build_walk_forward(daily_closes({s: frames[s] for s in symbols}), pd.Timestamp(start, unit="ms", tz="UTC"))
+        say(f"learn-from-failure model: walk-forward sizes for {len(meta.day_prob)} trade-days")
+    strat = build_strategies(cfg, mm, meta)
     bal = float(cfg["starting_balance"])
     pfs = {n: Portfolio.new(n, bal) for n in names}
     bench = Portfolio.new("buy_hold", bal)

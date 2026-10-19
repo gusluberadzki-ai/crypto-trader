@@ -43,8 +43,9 @@ risk:
 strategies:
   # each gets its own $10k portfolio. daily_trend and breakout won the 2021-2026 walk-forward research
   # (see research/RESULTS.md); the hourly ones are kept for comparison.
-  enabled: [daily_trend, breakout, ensemble, trend, mean_reversion, ml]
-  primary: daily_trend    # shown first on the dashboard
+  # adaptive_trend = daily_trend + learning from its own failed trades (research/RESULTS.md, round 2)
+  enabled: [adaptive_trend, daily_trend, breakout, ensemble, trend, mean_reversion, ml]
+  primary: adaptive_trend # shown first on the dashboard
 
 # Daily strategies hold for days to weeks, so they get their own risk settings:
 # full 1/3 allocation per coin, a wide safety stop, and no daily-loss / tight drawdown brakes
@@ -54,6 +55,7 @@ daily:
 strategy_risk:
   daily_trend: &daily_risk {max_position_pct: 0.34, max_total_exposure: 1.0, daily_loss_limit: 1.0, max_drawdown_halt: 0.5, cooldown_bars: 24}
   breakout: *daily_risk
+  adaptive_trend: *daily_risk
 
 trend:
   adx_min: 20
@@ -86,7 +88,7 @@ backtest:
 
 notify:
   ntfy_topic: papertrader-gus-5010d87dbb   # subscribe to this in the free ntfy app (blank = off)
-  portfolios: [daily_trend]  # whose trades send a push message (add breakout, ensemble, ... for more)
+  portfolios: [adaptive_trend]  # whose trades send a push message (add breakout, ensemble, ... for more)
   daily_summary_hour_utc: 1   # 01:00 UTC = 08:00 in Bangkok, 02:00 in Lausanne (winter); 6 = 07:00 Lausanne
   dashboard_url: https://gusluberadzki-ai.github.io/crypto-trader/
 

@@ -39,6 +39,7 @@ async def run_step(cfg: dict, site_dir: str | None) -> None:
     last_train = db.kv_get("last_retrain_at") or 0
     if now_ms() - last_train >= cfg["ml"]["retrain_every_hours"] * 3_600_000:
         await eng.retrain("initial training" if first else "scheduled")
+    await eng.learn()
     before = (db.one("SELECT MAX(id) AS m FROM decisions") or {}).get("m") or 0
     await eng.catch_up(bar_stops=True)
     eng.ready = True
@@ -89,6 +90,7 @@ def export_site(cfg: dict, eng: LiveEngine, out: Path) -> None:
         "events": get("/api/events?limit=150"),
         "backtests": get("/api/backtests"),
         "latest": get("/api/latest"),
+        "learning": get("/api/learning"),
         "sims": get("/api/sims"),
         "candles": {}, "markers": {}, "chart_positions": {}, "backtest_details": {},
     }

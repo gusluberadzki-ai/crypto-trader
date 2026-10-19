@@ -21,6 +21,7 @@ from .db import DB, now_ms
 from .engine import BENCH, Hub, LiveEngine
 from .features import ema
 from .metrics import clean, equity_stats, trade_stats
+from .postmortem import CATEGORIES, EXPLAIN, classify, summarise
 from .strategies import LABELS
 
 log = logging.getLogger("papertrader.api")
@@ -219,7 +220,24 @@ def create_app(cfg: dict, start_engine: bool = True, engine: LiveEngine | None =
             params.append(portfolio)
         sql += " ORDER BY exit_time DESC LIMIT ?"
         params.append(limit)
-        return clean(db.query(sql, params))
+        rows = db.query(sql, params)
+        for r in rows:
+            cat = classify(r)
+            r["lesson"], r["lesson_label"] = cat, CATEGORIES[cat]
+        return clean(rows)
+
+    @app.get("/api/learning")
+    def learning():
+        """What the bots learned: the learn-from-failure model, its weekly self-review, and trade post-mortems."""
+        trades = db.query("SELECT portfolio, pnl, pnl_pct, entry_time, exit_time, exit_reason, entry_fee, exit_fee "
+                          "FROM trades WHERE status='closed'")
+        return clean({
+            "meta": db.kv_get("meta_info") or engine.meta.info or {},
+            "review": db.kv_get("meta_review"),
+            "enabled": bool(db.kv_get("meta_enabled", True)),
+            "postmortems": summarise(trades),
+            "explain": EXPLAIN,
+        })
 
     @app.get("/api/decisions")
     def decisions(portfolio: str | None = None, limit: int = Query(50, le=500), actions_only: bool = True):

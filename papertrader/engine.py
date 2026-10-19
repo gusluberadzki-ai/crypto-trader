@@ -24,6 +24,7 @@ from .db import DB, now_ms
 from .features import features_for_all
 from .market import make_source
 from .metrics import clean
+from .meta import MetaLearner
 from .ml import ModelManager, promotion_decision, train_candidate
 from .risk import RiskManager
 from .strategies import LABELS, build_strategies, evaluate_all
@@ -85,7 +86,9 @@ class LiveEngine:
         self.risk = RiskManager(cfg)
         self.core = TradingCore(cfg, self.broker, self.risk)
         self.models = ModelManager(cfg, cfg["storage"]["model_dir"])
-        self.strategies = build_strategies(cfg, self.models)
+        self.meta = MetaLearner()
+        self._meta_day: int | None = None
+        self.strategies = build_strategies(cfg, self.models, self.meta)
         self.names: list[str] = list(cfg["strategies"]["enabled"])
         self.portfolios: dict[str, Portfolio] = {}
         self.frames: dict[str, pd.DataFrame] = {}
@@ -111,6 +114,7 @@ class LiveEngine:
         self.load_active_model()
         if self.models.active is None and self.db.kv_get("last_retrain_at") is None:
             await self.retrain("initial training")
+        await self.learn()
         sup = lambda name, f: asyncio.create_task(supervise(name, f, self.db, self.hub), name=name)
         self.tasks = [
             sup("market-feed", lambda: self.source.stream(self.on_kline, self.catch_up)),
@@ -146,6 +150,123 @@ class LiveEngine:
             if rows:
                 self.prices[s] = rows[-1]["close"]
             self.event("info", "data", f"{s}: back-filled {len(closed)} candles")
+        await self.backfill_daily()
+
+    async def backfill_daily(self) -> None:
+        """Long daily history (since 2019) for the learn-from-failure model. Cheap: a few requests per coin."""
+        for s in self.symbols:
+            last = self.db.last_candle_time(s, "1d")
+            since = last + 86_400_000 if last else 1_546_300_800_000  # 2019-01-01
+            try:
+                rows = await self.source.fetch_klines(s, since, interval="1d")
+            except Exception as exc:  # never block trading on this
+                self.event("warn", "data", f"{s}: daily history fetch failed ({exc})")
+                continue
+            self.db.upsert_candles(s, "1d", [r for r in rows if r["closed"]])
+
+    def daily_close(self) -> pd.DataFrame:
+        """Completed daily closes: stored daily candles, topped up with days completed in the hourly data."""
+        out = {}
+        for s in self.symbols:
+            d = self.db.load_candles(s, "1d")
+            ser = d["close"] if not d.empty else pd.Series(dtype=float)
+            h = self.frames.get(s)
+            if h is not None and not h.empty:
+                hh = h["close"].copy()
+                hh.index = (hh.index // 86_400_000) * 86_400_000
+                cnt = hh.groupby(level=0).size()
+                last = hh.groupby(level=0).last()[cnt >= 24]
+                extra = last[last.index > (ser.index.max() if len(ser) else 0)]
+                ser = pd.concat([ser, extra])
+            ser.index = pd.to_datetime(ser.index, unit="ms", utc=True)
+            out[s] = ser[~ser.index.duplicated(keep="last")]
+        return pd.DataFrame(out).sort_index()
+
+    def bench_failing_bots(self, min_trades: int = 30) -> None:
+        """Learning at the bot level: a fast-trading bot that has clearly been losing per trade stops opening new
+        trades (open positions still exit normally). Daily bots are exempt: they trade too rarely to judge this fast."""
+        import math
+        from .postmortem import DAILY, CATEGORIES, classify
+        for name, pf in self.portfolios.items():
+            if name in DAILY or name == BENCH or pf.halted:
+                continue
+            rows = self.db.query("SELECT * FROM trades WHERE portfolio=? AND status='closed'", (name,))
+            if len(rows) < min_trades:
+                continue
+            r = [x["pnl_pct"] for x in rows]
+            mean = sum(r) / len(r)
+            sd = (sum((x - mean) ** 2 for x in r) / (len(r) - 1)) ** 0.5
+            t = mean / (sd / math.sqrt(len(r))) if sd > 0 else 0.0
+            if mean < 0 and t < -1.0:
+                cats = {}
+                for x in rows:
+                    if x["pnl"] < 0:
+                        c = classify(x)
+                        cats[c] = cats.get(c, 0) + 1
+                top = max(cats, key=cats.get) if cats else None
+                pf.halted = True
+                pf.halt_reason = (f"benched after {len(rows)} trades losing {mean * 100:.2f}% per trade on average"
+                                  + (f" (mostly: {CATEGORIES[top].lower()})" if top else ""))
+                self.save_portfolio(pf)
+                self.event("warn", "learning", f"{LABELS.get(name, name)} {pf.halt_reason}; it keeps its open positions but stops opening new ones")
+
+    def _refresh_meta(self) -> None:
+        """Score the rule's trades with the current learner once per completed day."""
+        try:
+            close = self.daily_close()
+            if close.empty:
+                return
+            day = int(close.index[-1].value // 1_000_000)
+            if day != self._meta_day:
+                self.meta.prepare_live(close)
+                self._meta_day = day
+        except Exception as exc:
+            log.exception("meta refresh failed")
+            self.event("warn", "learning", f"could not refresh learned sizes ({exc}); using full size")
+
+    async def learn(self, force: bool = False) -> None:
+        """Load the learn-from-failure model; retrain it daily and review it weekly."""
+        import joblib
+        from pathlib import Path
+        path = Path(self.cfg["storage"]["model_dir"]) / "meta_learner.joblib"
+        self.meta.enabled = bool(self.db.kv_get("meta_enabled", True))
+        if path.exists() and self.meta.models is None:
+            try:
+                d = joblib.load(path)
+                self.meta.models, self.meta.info = d["models"], d["info"]
+            except Exception:
+                pass
+        due = now_ms() - (self.db.kv_get("last_meta_at") or 0) >= 24 * 3_600_000
+        if force or due or self.meta.models is None:
+            close = self.daily_close()
+            if len(close) >= 300:
+                loop = asyncio.get_running_loop()
+                info = await loop.run_in_executor(None, self.meta.fit, close)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                joblib.dump({"models": self.meta.models, "info": self.meta.info}, path)
+                self.db.kv_set("meta_info", info)
+                self.db.kv_set("last_meta_at", now_ms())
+                if info.get("status") == "active":
+                    self.event("info", "learning", f"re-learned from {info['trades']} past trades of the trend rule "
+                                                   f"(win rate {info['win_rate'] * 100:.0f}%, recent {info['recent_win_rate'] * 100:.0f}%)")
+                if now_ms() - (self.db.kv_get("last_meta_review_at") or 0) >= 7 * 86_400_000:
+                    rev = await loop.run_in_executor(None, self.meta.review, close)
+                    self.db.kv_set("meta_review", rev)
+                    self.db.kv_set("last_meta_review_at", now_ms())
+                    was = self.meta.enabled
+                    self.meta.enabled = bool(rev["helping"])
+                    self.db.kv_set("meta_enabled", self.meta.enabled)
+                    verdict = ("helping" if rev["learned_sharpe"] >= rev["full_size_sharpe"] else "roughly neutral") if rev["helping"] else "hurting"
+                    msg = (f"weekly self-review: over the last 12 months learned sizing was {verdict} "
+                           f"(risk-adjusted {rev['learned_sharpe']:.2f} vs {rev['full_size_sharpe']:.2f} at full size)")
+                    if was and not self.meta.enabled:
+                        msg += "; learning switched OFF until it proves itself again"
+                    elif not was and self.meta.enabled:
+                        msg += "; learning switched back ON"
+                    self.event("info" if rev["helping"] else "warn", "learning", msg)
+                    self.bench_failing_bots()
+        self._meta_day = None
+        self._refresh_meta()
 
     def load_frames(self) -> None:
         for s in self.symbols:
@@ -258,6 +379,7 @@ class LiveEngine:
 
     def _process_bar(self, t: int) -> None:
         self.pending.pop(t, None)
+        self._refresh_meta()
         feats = features_for_all(self.frames)
         for s in self.symbols:
             if t in feats[s].index:
@@ -458,6 +580,7 @@ class LiveEngine:
             last = self.db.kv_get("last_retrain_at", 0) or 0
             if now_ms() - last >= every:
                 await self.retrain("scheduled")
+                await self.learn()
             await asyncio.sleep(300)
 
     # ================================================================ housekeeping

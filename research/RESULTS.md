@@ -47,3 +47,39 @@
 - The final settings were chosen with the whole history visible; the walk-forward test (which wasn't) supports them, but expect live results to be worse than backtests.
 - 2021 (SOL went ~100×) dominates the long-run totals. The main, repeatable benefit is **much smaller drawdowns in crashes**, not beating every bull run: trend following lagged buy & hold in 2021 and 2023.
 - The hourly strategies are kept running for comparison.
+
+---
+
+# Round 2: can the bot learn from its failures? (October 2026)
+
+`research/lab2.py` tested six "learning" ideas on top of Daily trend, all judged out-of-sample 2021–2026
+(anything fitted only saw data from before the 6-month window it was scored on).
+
+| Idea | CAGR | Sharpe | Max DD | Verdict |
+|---|---|---|---|---|
+| Baseline Daily trend | 59% | 1.37 | −30% | — |
+| **Learn from its own failed trades** (model of past trades → skip/size new entries) | 57–59% | **1.55–1.62** | −30% | **Adopted (soft sizing version)** |
+| Whipsaw memory (wait / demand more after a losing trade) | 54–57% | 1.31–1.38 | −30% | No real gain |
+| Committee of 60 parameter settings | 53–55% | 1.29–1.33 | −35% | Worse |
+| Daily machine learning on prices | 36–42% | 1.29–1.36 | −29% | Worse |
+| Learn which bot works now (performance-weighted mix) | 59% | 1.35 | −31% | No gain |
+| Inverse-volatility coin weights | 50% | 1.30 | −26% | Lower risk, lower return |
+
+**Robustness of the winner.** A hard "skip trades the model dislikes" filter was fragile: depending on model settings,
+CAGR ranged from 30% to 59%. A **soft** version — a committee of 6 small models, position size 25–100% depending on the
+predicted chance of a win, retrained as trades finish — lifted Sharpe to 1.49–1.56 in **all 9** setting combinations
+tried, with CAGR 52–59%. It helps most in bad years (2022, 2025, 2026) and costs a little in strong rallies (2023–24).
+It did not transfer to the Breakout rule (Sharpe 1.28 → 1.33), so only Adaptive trend uses it.
+
+What it learned (2019–2026, 176 trades): trades started with stronger BTC momentum, further above the 50-day average,
+or after a losing trade won more often; entries after several recent false starts won less often.
+
+| Real bot engine | Last 180 days | Last 12 months | Jan 2021 – Oct 2026 |
+|---|---|---|---|
+| **Adaptive trend** | +12.4% | **+13.5%** (PF 3.48) | +2,465%, **Sharpe 1.50**, PF 3.42 |
+| Daily trend | +12.4% | +12.7% (PF 2.83) | +2,545%, Sharpe 1.42, PF 2.36 |
+
+Live safeguards: the model retrains daily; a **weekly self-review** re-checks the last 12 months walk-forward and switches
+learned sizing off if it is clearly hurting (Sharpe more than 0.3 below full size). Fast hourly bots that have clearly
+lost money per trade after 30+ trades are **benched** (no new entries). Every closed trade gets a post-mortem label
+(rode the trend / whipsaw / stopped out / trend reversed / lost to fees) shown on the dashboard.

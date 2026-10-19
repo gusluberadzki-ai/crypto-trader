@@ -5,9 +5,10 @@
   const STATIC = !!window.PT_STATIC;
   if (STATIC) document.body.classList.add("static");
 
-  const COLORS = { daily_trend: "#2ebd85", breakout: "#5fb8ff", ensemble: "#8b9dff", trend: "#36c2b4", mean_reversion: "#f5b14c", ml: "#d48cff", buy_hold: "#8a94a6" };
-  const LABELS = { daily_trend: "Daily trend", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly trend", mean_reversion: "Mean reversion", ml: "Machine learning", buy_hold: "Buy & hold" };
+  const COLORS = { adaptive_trend: "#f2c94c", daily_trend: "#2ebd85", breakout: "#5fb8ff", ensemble: "#8b9dff", trend: "#36c2b4", mean_reversion: "#f5b14c", ml: "#d48cff", buy_hold: "#8a94a6" };
+  const LABELS = { adaptive_trend: "Adaptive trend", daily_trend: "Daily trend", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly trend", mean_reversion: "Mean reversion", ml: "Machine learning", buy_hold: "Buy & hold" };
   const DESC = {
+    adaptive_trend: "Daily trend that learns from failure: a model studies every past trade of the rule (which ones lost, and in what conditions) and bets less on entries that look like past losers.",
     daily_trend: "Research winner. Holds a coin while it's above its 100-day average and up over 30 days; altcoins only while BTC is in an uptrend. Checks once a day.",
     breakout: "Buys when a coin closes above its 30-day high, sells when it drops below its 20-day low. Same BTC filter. Checks once a day.",
     ensemble: "Combines the trend, dip-buying and ML votes and only buys when they agree strongly enough.",
@@ -45,7 +46,7 @@
   async function fetchJSON(path) { const r = await fetch(path, { cache: "no-store" }); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
   async function loadAll() {
     if (STATIC) { S.D = await fetchJSON(`data.json?t=${Date.now()}`); return; }
-    const names = ["status", "markets", "portfolios", "positions", "equity", "models", "events", "backtests", "latest", "sims"];
+    const names = ["status", "markets", "portfolios", "positions", "equity", "models", "events", "backtests", "latest", "sims", "learning"];
     const paths = { positions: "/api/positions", events: "/api/events?limit=120" };
     const res = await Promise.all(names.map((n) => fetchJSON(paths[n] || `/api/${n}`).catch(() => null)));
     const D = {}; names.forEach((n, i) => D[n] = res[i]);
@@ -121,7 +122,7 @@
     ch.series.main.applyOptions({ lineColor: col, topColor: col + "55", bottomColor: col + "00" });
     const live = (arr, val) => { const a = [...(arr || [])]; const t = Math.floor(Date.now() / 1000); if (a.length && t > a[a.length - 1].time) a.push({ time: t, value: val }); return a; };
     const pts = live(series[S.pf], p.equity);
-    $("heroChart").style.visibility = pts.length >= 3 ? "visible" : "hidden";
+    $("heroChart").style.display = pts.length >= 3 ? "" : "none";
     ch.series.main.setData(pts);
     ch.series.bh.setData(S.pf === "buy_hold" ? [] : live(series.buy_hold, bh?.equity));
     ch.c.timeScale().fitContent();
@@ -223,10 +224,10 @@
           <div class="t2"><span>${LABELS[p.portfolio]} · bought ${price(p.entry_price)} → ${price(p.price)}</span><span class="${cls(p.pnl_pct)} mono">${pct(p.pnl_pct)}</span></div></div></div>
           ${S.expanded.has(id) ? `<div class="expl"><b>Why it bought</b>${esc(p.explanation)}</div>` : ""}`; }
       const t = it.t, id = "tr-" + t.id;
-      return `<div class="row click" data-x="${id}">${coinBadge(t.symbol)}<div class="main"><div class="t1"><span>${coin(t.symbol)} <span class="tag ${t.pnl > 0 ? "win" : "loss"}">${REASON[t.exit_reason] || t.exit_reason}</span></span><span class="${cls(t.pnl)} mono">${sMoney(t.pnl)}</span></div>
-        <div class="t2"><span>${LABELS[t.portfolio]} · ${day(t.exit_time)} · held ${dur(t.exit_time - t.entry_time)}</span><span class="${cls(t.pnl_pct)} mono">${pct(t.pnl_pct)}</span></div>
+      return `<div class="row click" data-x="${id}">${coinBadge(t.symbol)}<div class="main"><div class="t1"><span>${coin(t.symbol)} <span class="tag ${t.pnl > 0 ? "win" : "loss"}">${t.lesson_label || REASON[t.exit_reason] || t.exit_reason}</span></span><span class="${cls(t.pnl)} mono">${sMoney(t.pnl)}</span></div>
+        <div class="t2"><span>${LABELS[t.portfolio]} · ${day(t.exit_time)} · held ${dur(t.exit_time - t.entry_time)} · ${REASON[t.exit_reason] || t.exit_reason}</span><span class="${cls(t.pnl_pct)} mono">${pct(t.pnl_pct)}</span></div>
         <div class="t2"><span class="mono">${price(t.entry_price)} → ${price(t.exit_price)}</span><span class="faint">fees ${money(t.entry_fee + t.exit_fee)}</span></div></div></div>
-        ${S.expanded.has(id) ? `<div class="expl"><b>Why it bought</b>${esc(t.entry_explanation)}<b>Why it sold</b>${esc(t.exit_explanation)}</div>` : ""}`;
+        ${S.expanded.has(id) ? `<div class="expl"><b>Why it bought</b>${esc(t.entry_explanation)}<b>Why it sold</b>${esc(t.exit_explanation)}${t.lesson && S.D.learning?.explain ? `<b>Post-mortem</b>${esc(t.lesson_label)}: ${esc(S.D.learning.explain[t.lesson])}.` : ""}</div>` : ""}`;
     }).join("");
     bindExpand($("tradeList"), renderTradeTab);
   }
@@ -246,6 +247,30 @@
     const p = pf(S.pf);
     $("sigNote").textContent = p?.significance_note ? `Honesty check: ${p.significance_note}.` : "";
   }
+  function renderLearning() {
+    const L = S.D.learning; if (!L) { $("learning").innerHTML = `<div class="empty">No learning data yet.</div>`; return; }
+    const m = L.meta || {}, rv = L.review;
+    let html = `<div class="learn-block"><div class="t1"><span class="sw" style="background:${COLORS.adaptive_trend}"></span><b>Adaptive trend's memory</b>
+      <span class="tag ${L.enabled && m.status === "active" ? "win" : "warn"}">${L.enabled ? (m.status === "active" ? "learning ON" : "warming up") : "learning OFF"}</span></div>`;
+    if (m.status === "active") {
+      html += `<p class="explain">Studied <b>${m.trades}</b> finished trades of the trend rule (${m.first_trade} → ${m.last_trade}). Only ${pct(m.win_rate, 0, false)} won — but the average win was <span class="up">${pct(m.avg_win, 0)}</span> vs an average loss of <span class="down">${pct(m.avg_loss, 1)}</span>, so a few big winners pay for many small losses. Its last 20 trades won ${pct(m.recent_win_rate, 0, false)}. It retrains every day, so each new failure becomes part of what it knows.</p>`;
+      if (m.lessons?.length) html += `<ul class="lessons">${m.lessons.map((l) => `<li>${esc(l)}</li>`).join("")}</ul><p class="note" style="margin-top:6px">So when a new entry looks like past losers, it buys only 25–60% of a normal position; when it looks like past winners, the full amount.</p>`;
+    } else html += `<p class="explain">${esc(m.status || "Not trained yet.")}</p>`;
+    if (rv) html += `<div class="review"><b>Weekly self-review</b> (${ago(rv.reviewed_at)}): over the last 12 months, learned sizing scored ${rv.learned_sharpe.toFixed(2)} on risk-adjusted return vs ${rv.full_size_sharpe.toFixed(2)} without it (${pct(rv.learned_return, 1)} vs ${pct(rv.full_size_return, 1)}). ${rv.helping ? "Keeping it on." : "It was hurting, so it's switched off until it proves itself again."}</div>`;
+    html += `</div>`;
+    const pm = L.postmortems || {};
+    const pfs = Object.keys(pm).sort((a, b) => pm[b].trades - pm[a].trades);
+    html += `<div class="learn-block"><div class="t1"><b>Post-mortems of live trades</b></div>`;
+    if (!pfs.length) html += `<p class="explain">No closed trades yet. Every trade that closes gets labelled with why it won or lost.</p>`;
+    for (const n of pfs) {
+      const b = pm[n], cats = Object.entries(b.categories).sort((a, x) => x[1].count - a[1].count);
+      html += `<div class="pm"><div class="pm-head"><span><i class="sw" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${COLORS[n]};margin-right:6px"></i>${LABELS[n] || n}</span><span class="mono ${cls(b.pnl)}">${sMoney(b.pnl)} · ${b.trades} trades</span></div>
+        <div class="pm-cats">${cats.map(([k, c]) => `<span class="tag ${c.pnl >= 0 ? "win" : "loss"}">${esc(c.label)} ×${c.count}</span>`).join("")}</div>
+        ${b.main_lesson ? `<p class="note" style="margin:6px 0 0">${esc(b.main_lesson)}</p>` : ""}${b.fee_note ? `<p class="note" style="margin:4px 0 0">${esc(b.fee_note)}</p>` : ""}</div>`;
+    }
+    $("learning").innerHTML = html + `</div>`;
+  }
+
   function renderEquity() {
     const series = S.D.equity?.series || {}, names = Object.keys(series);
     const ch = chart("equityChart", dollars);
@@ -375,7 +400,7 @@
     if (!S.D.portfolios?.length) return;
     if (!S.pf || !pf(S.pf)) S.pf = S.D.status?.primary || S.D.portfolios[0].name;
     renderStatus(); renderChips(); renderHero(); renderStats(); renderPositions(); renderThinking(); renderActivity();
-    renderTradeTab(); renderLeaderboard(); renderEquity(); renderModels(); renderLog(); renderCoins(); renderSims();
+    renderTradeTab(); renderLearning(); renderLeaderboard(); renderEquity(); renderModels(); renderLog(); renderCoins(); renderSims();
     if (S.tab === "market") renderPriceChart();
   }
 

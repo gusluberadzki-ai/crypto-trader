@@ -92,9 +92,10 @@ function build(d, famOverride) {
     const c = parent.addStack(); c.layoutVertically(); c.size = new Size(width, 0);
     for (const it of items) { const r = c.addStack(); if (alignRight) r.addSpacer(); render(r, it); if (!alignRight) r.addSpacer(); }
   };
-  const short = { daily_trend: "Daily", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly", mean_reversion: "Mean rev", ml: "ML" };
-  col(row, 62, d.portfolios, (r, p) => text(r, short[p.name] || p.label, 10, MUTED), false);
-  col(row, 44, d.portfolios, (r, p) => text(r, pct(p.return), 10, colr(p.return), false, true), true);
+  const shown = [main, ...d.portfolios.filter((p) => p !== main).sort((a, b) => b.return - a.return)].slice(0, 4);
+  const short = { adaptive_trend: "Adaptive", daily_trend: "Daily", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly", mean_reversion: "Mean rev", ml: "ML" };
+  col(row, 62, shown, (r, p) => text(r, short[p.name] || p.label, 10, MUTED), false);
+  col(row, 44, shown, (r, p) => text(r, pct(p.return), 10, colr(p.return), false, true), true);
   row.addSpacer();
   col(row, 30, d.prices, (r, p) => text(r, p.symbol, 10, MUTED), false);
   col(row, 52, d.prices, (r, p) => text(r, px(p.price), 10, TEXT, false, true), true);

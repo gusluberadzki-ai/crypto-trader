@@ -54,7 +54,7 @@ DEFAULTS: dict = {
     "storage": {"db_path": "data/papertrader.db", "model_dir": "data/models", "log_dir": "data/logs"},
 }
 
-KNOWN_STRATEGIES = {"ensemble", "trend", "mean_reversion", "ml", "daily_trend", "breakout"}
+KNOWN_STRATEGIES = {"ensemble", "trend", "mean_reversion", "ml", "daily_trend", "breakout", "adaptive_trend"}
 
 
 def _merge(base: dict, override: dict) -> dict:

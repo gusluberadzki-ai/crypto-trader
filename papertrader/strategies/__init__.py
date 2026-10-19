@@ -218,14 +218,46 @@ class BreakoutStrategy:
         return Signal(self.name, "neutral", 0.5, 0, [f"no breakout: price between the {span}"], details)
 
 
-BASE_ORDER = ["trend", "mean_reversion", "ml", "daily_trend", "breakout"]
+class AdaptiveTrendStrategy(DailyTrendStrategy):
+    """Daily trend + learning from failure: a model trained on the rule's own past trades (which ones lost and in
+    what conditions) sizes each new position between 25% and 100% of a full one."""
+    name = "adaptive_trend"
+    label = "Adaptive trend"
+
+    def __init__(self, cfg: dict, meta=None):
+        super().__init__(cfg)
+        self.meta = meta
+
+    def evaluate(self, symbol: str, row: pd.Series, ctx: dict) -> Signal:
+        sig = super().evaluate(symbol, row, ctx)
+        sig.strategy = self.name
+        if sig.stance != "bull" or self.meta is None:
+            return sig
+        size, p = self.meta.size_for(symbol, row.get("d_day", 0))
+        sig.details["target_weight"] = self.weight * size
+        sig.details["learned_size"] = size
+        sig.details["win_prob"] = p
+        info = getattr(self.meta, "info", {}) or {}
+        if p is None:
+            sig.reasons.append("learning not active yet, so full size")
+        else:
+            base = info.get("win_rate")
+            sig.reasons.append(f"learned sizing: {size * 100:.0f}% of a full position — past trades that started like this "
+                               f"one won about {p * 100:.0f}% of the time (full size needs 60%+"
+                               + (f"; the average past trade won {base * 100:.0f}%)" if base else ")"))
+        return sig
+
+
+BASE_ORDER = ["trend", "mean_reversion", "ml", "daily_trend", "breakout", "adaptive_trend"]
 LABELS = {"trend": TrendStrategy.label, "mean_reversion": MeanReversionStrategy.label, "ml": MLStrategy.label,
           "ensemble": EnsembleStrategy.label, "buy_hold": "Buy & hold (benchmark)",
-          "daily_trend": DailyTrendStrategy.label, "breakout": BreakoutStrategy.label}
+          "daily_trend": DailyTrendStrategy.label, "breakout": BreakoutStrategy.label,
+          "adaptive_trend": AdaptiveTrendStrategy.label}
 
 
-def build_strategies(cfg: dict, models) -> dict:
+def build_strategies(cfg: dict, models, meta=None) -> dict:
     return {
+        "adaptive_trend": AdaptiveTrendStrategy(cfg, meta),
         "trend": TrendStrategy(cfg),
         "mean_reversion": MeanReversionStrategy(cfg),
         "ml": MLStrategy(cfg, models),

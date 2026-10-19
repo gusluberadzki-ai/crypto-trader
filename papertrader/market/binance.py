@@ -92,13 +92,15 @@ class BinanceSource:
                 delay = min(delay * 2, 30)
         return []
 
-    async def fetch_klines(self, symbol: str, start_ms: int, end_ms: int | None = None) -> list[dict]:
+    async def fetch_klines(self, symbol: str, start_ms: int, end_ms: int | None = None,
+                           interval: str | None = None) -> list[dict]:
         """All klines from start_ms (inclusive) up to end_ms/now, paginated 1000 at a time."""
         out: list[dict] = []
-        step = INTERVAL_MS[self.interval]
+        interval = interval or self.interval
+        step = INTERVAL_MS[interval]
         cursor = start_ms
         while True:
-            params = {"symbol": symbol, "interval": self.interval, "startTime": cursor, "limit": 1000}
+            params = {"symbol": symbol, "interval": interval, "startTime": cursor, "limit": 1000}
             if end_ms:
                 params["endTime"] = end_ms
             batch = await self._get("/api/v3/klines", params)

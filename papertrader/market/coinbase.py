@@ -69,22 +69,25 @@ class CoinbaseSource:
                 delay = min(delay * 2, 20)
         return []
 
-    async def fetch_klines(self, symbol: str, start_ms: int, end_ms: int | None = None) -> list[dict]:
+    async def fetch_klines(self, symbol: str, start_ms: int, end_ms: int | None = None,
+                           interval: str | None = None) -> list[dict]:
+        gran = GRANULARITY[interval] if interval else self.gran
+        step = gran * 1000
         now = int(time.time() * 1000)
         end_ms = min(end_ms or now, now)
-        start_ms -= start_ms % self.step
+        start_ms -= start_ms % step
         out: dict[int, dict] = {}
         cursor = start_ms
         while cursor <= end_ms:
-            chunk_end = min(cursor + 299 * self.step, end_ms)
+            chunk_end = min(cursor + 299 * step, end_ms)
             rows = await self._get(f"{BASE}/products/{product(symbol)}/candles",
-                                   {"granularity": self.gran, "start": iso(cursor), "end": iso(chunk_end)})
+                                   {"granularity": gran, "start": iso(cursor), "end": iso(chunk_end)})
             for t, low, high, op, close, vol in rows:  # newest first
                 ot = int(t) * 1000
                 out[ot] = {"open_time": ot, "open": float(op), "high": float(high), "low": float(low),
                            "close": float(close), "volume": float(vol), "quote_volume": float(vol) * float(close),
-                           "closed": ot + self.step <= now}
-            cursor = chunk_end + self.step
+                           "closed": ot + step <= now}
+            cursor = chunk_end + step
             await asyncio.sleep(0.2)
         self.messages += 1
         self.last_message_at = time.time()
