@@ -1,0 +1,12 @@
+# Manual "send me a test notification" button (Actions tab -> notify-test -> Run workflow)
+name: notify-test
+on: workflow_dispatch
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -fsS -H "Title: PaperTrader test" -H "Tags: tada" \
+            -H "Click: https://gusluberadzki-ai.github.io/crypto-trader/" \
+            -d "Notifications work! You'll get a message on every Ensemble trade plus a daily summary." \
+            https://ntfy.sh/papertrader-gus-5010d87dbb
