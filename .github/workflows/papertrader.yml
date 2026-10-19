@@ -60,9 +60,14 @@ jobs:
           git -c user.name="papertrader-bot" -c user.email="actions@users.noreply.github.com" commit -qm "state $(date -u +%FT%TZ)"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" state
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      # Dashboard publishing: skipped quietly until Pages is enabled (Settings -> Pages -> Source: GitHub Actions)
+      - id: pages
+        uses: actions/configure-pages@v5
+        continue-on-error: true
+      - if: steps.pages.outcome == 'success'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: site
       - id: deploy
+        if: steps.pages.outcome == 'success'
         uses: actions/deploy-pages@v4
