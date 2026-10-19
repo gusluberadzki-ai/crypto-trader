@@ -4,7 +4,7 @@ name: paper-trader
 
 on:
   schedule:
-    - cron: "7,37 * * * *"   # twice an hour: decision after each candle close + a price refresh (backup if GitHub skips one)
+    - cron: "8,38 * * * *"   # twice an hour: decision after each candle close + a price refresh (backup if GitHub skips one)
   workflow_dispatch:      # "Run workflow" button for a manual run
 
 permissions:
