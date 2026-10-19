@@ -1,6 +1,11 @@
 # Manual: run the AI agent in dry-run mode (no trading) and save its full briefing + answer to the `debug` branch.
 name: agent-check
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Ollama model to test
+        default: qwen2.5:14b
 permissions:
   contents: write
 jobs:
@@ -19,10 +24,12 @@ jobs:
           curl -fsSL https://ollama.com/install.sh | sh
           (ollama serve > /tmp/ollama.log 2>&1 &) ; sleep 3
           for i in $(seq 1 30); do curl -s localhost:11434/api/version && break; sleep 2; done
-          ollama pull qwen2.5:7b
-      - env: { LLM_BASE_URL: "http://localhost:11434/v1", LLM_MODEL: "qwen2.5:7b" }
+          ollama pull "${{ inputs.model }}"
+      - env: { LLM_BASE_URL: "http://localhost:11434/v1", LLM_MODEL: "${{ inputs.model }}" }
         run: |
           mkdir out
+          start=$(date +%s)
           python -m papertrader --config config.yaml agent-dry-run > out/agent.json 2> out/agent.log || true
+          echo "seconds=$(( $(date +%s) - start ))" > out/timing.txt
           cd out && git init -q -b debug && git add -A && git -c user.name=bot -c user.email=a@b.c commit -qm check
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" debug
