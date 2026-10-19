@@ -52,9 +52,9 @@ jobs:
           curl -fsSL https://ollama.com/install.sh | sh
           (ollama serve > /tmp/ollama.log 2>&1 &) ; sleep 3
           for i in $(seq 1 30); do curl -s localhost:11434/api/version && break; sleep 2; done
-          ollama pull qwen2.5:7b
+          ollama pull qwen2.5:14b
           echo "LLM_BASE_URL=http://localhost:11434/v1" >> "$GITHUB_ENV"
-          echo "LLM_MODEL=qwen2.5:7b" >> "$GITHUB_ENV"
+          echo "LLM_MODEL=qwen2.5:14b" >> "$GITHUB_ENV"
 
       - name: Trading step
         run: python -m papertrader --config config.yaml step --site site

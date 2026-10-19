@@ -7,7 +7,7 @@ trades with post-mortems, and how accurate its past forecasts were). It replies 
 reasoning, 7-day outlooks and updates to its own notes. Those notes are fed back next day, so it learns over time.
 
 Model access: any OpenAI-compatible chat endpoint given by LLM_BASE_URL / LLM_MODEL / LLM_API_KEY. On GitHub Actions the
-workflow runs a free open-source model (Qwen 2.5, 7B parameters) locally on the runner with Ollama once a day - no API
+workflow runs a free open-source model (Qwen 2.5, 14B parameters) locally on the runner with Ollama once a day - no API
 key, no account, no cost. (GitHub's own hosted models were retired on 30 July 2026.)
 Everything stays paper: the model only outputs numbers; the engine validates them and simulates the fills.
 It cannot be fairly backtested (a language model may remember historical prices), so its live paper record is
@@ -72,7 +72,7 @@ class AIAgent:
     def __init__(self, cfg: dict, db):
         self.cfg, self.db = cfg, db
         a = cfg.get("agent") or {}
-        self.models = a.get("models") or ["qwen2.5:7b"]
+        self.models = a.get("models") or ["qwen2.5:14b"]
         self.enabled = a.get("enabled", True)
 
     # ------------------------------------------------------------------ memory
