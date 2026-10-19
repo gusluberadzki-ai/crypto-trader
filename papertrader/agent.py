@@ -148,8 +148,8 @@ class AIAgent:
             return None, "", "no GITHUB_TOKEN available (the AI agent only runs on GitHub Actions or with a token)"
         msgs = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": "Today's briefing (JSON):\n" + json.dumps(brief, separators=(",", ":"))}]
-        last_err = ""
-        async with httpx.AsyncClient(timeout=90) as c:
+        errors = []
+        async with httpx.AsyncClient(timeout=90, follow_redirects=True) as c:
             for model in self.models:
                 for attempt in range(2):
                     try:
@@ -159,20 +159,25 @@ class AIAgent:
                         r = await c.post(ENDPOINT, json=body, headers={"Authorization": f"Bearer {token}",
                                                                       "Content-Type": "application/json"})
                         if r.status_code == 429:
-                            last_err = f"{model}: rate limited"
+                            errors.append(f"{model}: rate limited")
                             break
-                        if r.status_code >= 400:
-                            last_err = f"{model}: HTTP {r.status_code} {r.text[:200]}"
+                        try:
+                            payload = r.json()
+                        except ValueError:
+                            errors.append(f"{model}: HTTP {r.status_code}, non-JSON body {r.text[:120]!r}")
                             continue
-                        text = r.json()["choices"][0]["message"]["content"]
+                        if r.status_code >= 400 or "choices" not in payload:
+                            errors.append(f"{model}: HTTP {r.status_code} {json.dumps(payload)[:200]}")
+                            continue
+                        text = payload["choices"][0]["message"]["content"] or ""
                         m = re.search(r"\{.*\}", text, re.S)
                         if not m:
-                            last_err = f"{model}: no JSON in reply"
+                            errors.append(f"{model}: no JSON in reply {text[:80]!r}")
                             continue
                         return json.loads(m.group(0)), model, ""
                     except Exception as exc:
-                        last_err = f"{model}: {type(exc).__name__}: {exc}"[:240]
-        return None, "", last_err
+                        errors.append(f"{model}: {type(exc).__name__}: {exc}"[:200])
+        return None, "", " | ".join(errors)[:900]
 
     @staticmethod
     def validate(d: dict, symbols: list[str]) -> dict:
