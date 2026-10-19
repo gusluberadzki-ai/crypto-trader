@@ -49,6 +49,7 @@ DEFAULTS: dict = {
         "buy_score": 0.30, "sell_score": -0.20, "max_vol_percentile": 0.95,
     },
     "backtest": {"days": 180, "retrain_every_days": 14},
+    "notify": {"ntfy_topic": "", "portfolios": ["ensemble"], "daily_summary_hour_utc": 1, "dashboard_url": ""},
     "server": {"host": "127.0.0.1", "port": 8000},
     "storage": {"db_path": "data/papertrader.db", "model_dir": "data/models", "log_dir": "data/logs"},
 }

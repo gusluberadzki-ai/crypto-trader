@@ -39,8 +39,14 @@ async def run_step(cfg: dict, site_dir: str | None) -> None:
     last_train = db.kv_get("last_retrain_at") or 0
     if now_ms() - last_train >= cfg["ml"]["retrain_every_hours"] * 3_600_000:
         await eng.retrain("initial training" if first else "scheduled")
+    before = (db.one("SELECT MAX(id) AS m FROM decisions") or {}).get("m") or 0
     await eng.catch_up(bar_stops=True)
     eng.ready = True
+    from .notify import daily_summary, hello, trade_alerts
+    hello(cfg, db)
+    if not first:  # don't spam on the very first run
+        trade_alerts(cfg, db, before)
+    daily_summary(cfg, eng)
 
     last_bt = db.kv_get("last_backtest_at") or 0
     if now_ms() - last_bt >= 7 * 86_400_000:
@@ -105,3 +111,21 @@ def export_site(cfg: dict, eng: LiveEngine, out: Path) -> None:
     (out / "index.html").write_text(html, encoding="utf-8")
     (out / "data.json").write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
     (out / ".nojekyll").write_text("")
+    (out / "widget.json").write_text(json.dumps(widget_data(cfg, eng, data)), encoding="utf-8")
+    shutil.copy(Path(__file__).parent / "widget" / "widget.js", out / "widget.js")
+
+
+def widget_data(cfg: dict, eng: LiveEngine, data: dict) -> dict:
+    """Small summary for the phone widget."""
+    bh = next(p for p in data["portfolios"] if p["name"] == BENCH)
+    return {
+        "updated": data["status"]["generated_at"],
+        "primary": cfg["strategies"]["primary"],
+        "buy_hold": bh["total_return"],
+        "portfolios": [{"name": p["name"], "label": p["label"].split(" (")[0], "equity": round(p["equity"], 2),
+                        "return": p["total_return"], "open": p["open_positions"], "trades": p["trades"]}
+                       for p in data["portfolios"] if p["name"] != BENCH],
+        "prices": [{"symbol": m["symbol"].replace("USDT", ""), "price": m["price"], "change": m["change_24h"]}
+                   for m in data["markets"]],
+        "url": cfg["notify"].get("dashboard_url") or "",
+    }
