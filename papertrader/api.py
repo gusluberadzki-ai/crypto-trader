@@ -42,10 +42,10 @@ def session_token(password: str) -> str:
     return hmac.new(password.encode(), b"papertrader-session-v1", hashlib.sha256).hexdigest()
 
 
-def create_app(cfg: dict, start_engine: bool = True) -> FastAPI:
-    db = DB(cfg["storage"]["db_path"])
-    hub = Hub()
-    engine = LiveEngine(cfg, db, hub)
+def create_app(cfg: dict, start_engine: bool = True, engine: LiveEngine | None = None) -> FastAPI:
+    db = engine.db if engine else DB(cfg["storage"]["db_path"])
+    hub = engine.hub if engine else Hub()
+    engine = engine or LiveEngine(cfg, db, hub)
     state = {"backtest_running": False, "start_error": None}
 
     @asynccontextmanager

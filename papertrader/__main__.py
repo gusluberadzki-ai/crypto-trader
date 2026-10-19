@@ -46,6 +46,9 @@ def main(argv: list[str] | None = None) -> None:
     b.add_argument("--sim", action="store_true")
     t = sub.add_parser("train", help="train and evaluate a model now")
     t.add_argument("--sim", action="store_true")
+    st = sub.add_parser("step", help="one scheduled run (used by GitHub Actions): update, decide, export site")
+    st.add_argument("--site", default="site", help="folder for the static dashboard")
+    st.add_argument("--sim", action="store_true")
     z = sub.add_parser("reset", help="reset paper portfolios")
     z.add_argument("--yes", action="store_true")
     z.add_argument("--sim", action="store_true")
@@ -93,6 +96,10 @@ def main(argv: list[str] | None = None) -> None:
             eng.load_active_model()
             print((await eng.retrain("manual (CLI)"))["message"])
         asyncio.run(go())
+
+    elif args.cmd == "step":
+        from .cloud import run_step
+        asyncio.run(run_step(cfg, args.site))
 
     elif args.cmd == "reset":
         if not args.yes:

@@ -25,7 +25,33 @@
   };
   const dt = (ms) => new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const dur = (h) => h == null ? "—" : h < 1 ? `${Math.round(h * 60)}m` : h < 48 ? `${h.toFixed(1)}h` : `${(h / 24).toFixed(1)}d`;
+  const STATIC = !!window.PT_STATIC;  // read-only export (GitHub Pages)
+  let staticData = null, staticAt = 0;
+  async function staticApi(path) {
+    if (!staticData || Date.now() - staticAt > 30000) {
+      const r = await fetch(`data.json?t=${Date.now()}`, { cache: "no-store" });
+      if (!r.ok) throw new Error("data.json: " + r.status);
+      staticData = await r.json(); staticAt = Date.now();
+    }
+    const D = staticData, u = new URL(path, location.href), q = u.searchParams, p = u.pathname.replace(/^.*\/api\//, "");
+    const pf = q.get("portfolio"), lim = parseInt(q.get("limit") || "1000");
+    if (p === "status") return D.status;
+    if (p === "markets") return D.markets;
+    if (p === "portfolios") return D.portfolios;
+    if (p === "positions") return D.positions.filter((x) => !pf || x.portfolio === pf);
+    if (p === "trades") return D.trades.filter((x) => !pf || x.portfolio === pf).slice(0, lim);
+    if (p === "decisions") return D.decisions.filter((x) => !pf || x.portfolio === pf).slice(0, lim);
+    if (p === "equity") return D.equity;
+    if (p === "models") return D.models;
+    if (p === "events") return D.events.slice(0, lim);
+    if (p === "backtests") return D.backtests;
+    if (p.startsWith("backtests/")) return D.backtest_details[p.split("/")[1]];
+    if (p === "candles") { const s = q.get("symbol"), f = pf || D.status.primary;
+      return { ...D.candles[s], live: null, markers: D.markers[f]?.[s] || [], positions: D.chart_positions[f]?.[s] || [] }; }
+    throw new Error("not available in read-only mode");
+  }
   const api = async (path, opts) => {
+    if (STATIC) return staticApi(path);
     const r = await fetch(path, opts);
     if (!r.ok) throw new Error(`${path}: ${r.status}`);
     return r.json();
@@ -232,7 +258,7 @@
       <tr><td><b>v${m.version}</b>${m.active ? ' <span class="tag" style="color:var(--up)">active</span>' : ""}</td><td class="muted">${dt(m.created_at)}</td>
       <td class="n">${m.val_auc.toFixed(3)}</td><td class="n ${cls(m.val_expectancy)}">${pct(m.val_expectancy)}</td><td class="n">${m.val_trades}</td>
       <td class="reason">${m.promoted ? "✓ " : "✗ "}${esc(m.reason)}</td>
-      <td>${m.active ? "" : `<button class="btn link" data-v="${m.version}">activate</button>`}</td></tr>`).join("")}</tbody>`;
+      <td>${m.active || STATIC ? "" : `<button class="btn link" data-v="${m.version}">activate</button>`}</td></tr>`).join("")}</tbody>`;
     $("modelTable").querySelectorAll("button[data-v]").forEach((b) => b.onclick = async () => {
       if (!confirm(`Manually activate model v${b.dataset.v}? This bypasses the promotion check.`)) return;
       await api(`/api/models/${b.dataset.v}/activate`, { method: "POST" }); loadModels();
@@ -282,12 +308,13 @@
     S.status = { ...(S.status || {}), ...st };
     const pill = $("feedPill");
     const map = { live: ["live", "Live"], polling: ["warn", "Polling (REST)"], reconnecting: ["warn", "Reconnecting"],
-                  connecting: ["warn", "Connecting"], starting: ["warn", "Starting"], offline: ["bad", "Offline"] };
+                  connecting: ["warn", "Connecting"], hourly: ["live", "Updated hourly"], starting: ["warn", "Starting"], offline: ["bad", "Offline"] };
     const [k, label] = st.start_error ? ["bad", "Engine error"] : (map[st.feed] || ["warn", st.feed]);
     pill.className = `pill ${k}`;
-    $("feedText").textContent = `${label} · ${st.source === "sim" ? "synthetic data" : "Binance"}`;
+    $("feedText").textContent = `${label} · ${{ sim: "synthetic data", binance: "Binance", coinbase: "Coinbase" }[st.source] || st.source}`;
     pill.title = st.start_error || st.feed_detail || "";
     const up = st.uptime_sec, uptime = up > 86400 ? `${(up / 86400).toFixed(1)}d` : up > 3600 ? `${(up / 3600).toFixed(1)}h` : `${Math.round(up / 60)}m`;
+    if (STATIC) { $("metaBar").textContent = `last run ${st.generated_at ? ago(st.generated_at) : "—"} · next run around :10 past the hour · ${st.interval} bars`; $("sysHint").textContent = "read-only view"; return; }
     $("metaBar").textContent = `${st.interval} bars · last decision ${st.last_bar ? dt(st.last_bar + intervalMs(st.interval)) : "—"} · uptime ${uptime} · reconnects ${st.reconnects}`;
     $("sysHint").textContent = st.last_message_age != null ? `last market message ${st.last_message_age}s ago` : "";
     $("btRun").disabled = !!st.backtest_running; $("btRun").textContent = st.backtest_running ? "Running…" : "Run backtest";
@@ -348,9 +375,11 @@
     $("btRun").onclick = async () => { const d = parseInt($("btDays").value) || 180; $("btRun").disabled = true; $("btRun").textContent = "Running…";
       const r = await api(`/api/backtests?days=${d}`, { method: "POST" }); toast(r.status === "started" ? `Backtest started (${d} days)` : r.status); };
     $("btSelect").onchange = (e) => { S.btId = parseInt(e.target.value); showBacktest(); };
+    if (STATIC) { ["retrainBtn", "btRun", "btDays", "resumeBtn"].forEach((id) => $(id).style.display = "none"); }
     await refreshAll();
     await loadChart(true);
     loadBacktests();
+    if (STATIC) { setInterval(async () => { await refreshAll(); loadChart(); loadBacktests(); }, 300000); return; }
     connect();
     setInterval(refreshAll, 60000);
     setInterval(() => document.querySelectorAll(".when[data-t]").forEach((el) => el.textContent = ago(+el.dataset.t)), 15000);

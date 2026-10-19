@@ -1,0 +1,68 @@
+# Runs the paper-trading bot once an hour on GitHub's free runners and publishes the dashboard
+# to GitHub Pages. Bot state (SQLite + models) is kept on the `state` branch between runs.
+name: paper-trader
+
+on:
+  schedule:
+    - cron: "7 * * * *"   # every hour, 7 minutes after the candle closes
+  workflow_dispatch:      # "Run workflow" button for a manual run
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: paper-trader
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore bot state
+        run: |
+          mkdir -p data
+          if git ls-remote --exit-code --heads origin state >/dev/null; then
+            git fetch --depth 1 origin state
+            git archive FETCH_HEAD | tar -x -C data
+            echo "state restored"
+          else
+            echo "first run: starting fresh"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Trading step
+        run: python -m papertrader --config config.yaml step --site site
+        env:
+          PT_DATA_SOURCE: auto
+
+      - name: Save bot state
+        if: always()
+        run: |
+          cd data
+          rm -rf logs
+          [ -f papertrader.db ] || exit 0
+          git init -q -b state
+          git add -A
+          git -c user.name="papertrader-bot" -c user.email="actions@users.noreply.github.com" commit -qm "state $(date -u +%FT%TZ)"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" state
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4

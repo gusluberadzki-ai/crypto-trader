@@ -32,7 +32,9 @@ docker compose logs -f
 
 Option B, plain Python: run it inside `tmux`/`screen`, or as a systemd service on Linux. The bot keeps all state in `data/papertrader.db`, so stopping and restarting is safe: positions, cash, trades and equity history come back, missed candles are back-filled, and any stop-loss that would have triggered while it was off is applied at the historical price.
 
-Option C, Railway (cloud, set up from a phone): create a project from this GitHub repo, add a variable `DASHBOARD_PASSWORD`, attach a volume mounted at `/app/data`, and generate a public domain. The bot refuses to start on a cloud host without a password.
+Option C, free on GitHub (no server): the included workflow `.github/workflows/papertrader.yml` runs one trading step every hour on GitHub Actions and publishes a read-only dashboard to GitHub Pages. Make the repo public, set Settings → Pages → Source to "GitHub Actions", then run the workflow once from the Actions tab. State is saved to the `state` branch. It uses Binance data when reachable, otherwise Coinbase (GitHub's runners are in the US, where Binance is blocked).
+
+Option D, Railway (cloud, set up from a phone): create a project from this GitHub repo, add a variable `DASHBOARD_PASSWORD`, attach a volume mounted at `/app/data`, and generate a public domain. The bot refuses to start on a cloud host without a password.
 
 Your computer must stay awake. For a multi-week run, a cheap always-on machine (Raspberry Pi, old laptop, small cloud VM) is ideal.
 

@@ -92,8 +92,10 @@ def validate(cfg: dict) -> None:
     if cfg["strategies"]["primary"] not in cfg["strategies"]["enabled"]:
         cfg["strategies"]["primary"] = cfg["strategies"]["enabled"][0]
     cfg["symbols"] = [s.upper() for s in cfg["symbols"]]
-    if cfg["data"]["source"] not in ("binance", "sim"):
-        raise ValueError("data.source must be 'binance' or 'sim'")
+    if os.environ.get("PT_DATA_SOURCE"):
+        cfg["data"]["source"] = os.environ["PT_DATA_SOURCE"]
+    if cfg["data"]["source"] not in ("binance", "coinbase", "auto", "sim"):
+        raise ValueError("data.source must be 'binance', 'coinbase', 'auto' or 'sim'")
 
 
 def _contains_key(obj, key: str) -> bool:

@@ -165,9 +165,11 @@ class LiveEngine:
         else:
             self.frames[s] = pd.concat([df, row]).iloc[-FRAME_BARS:]
 
-    async def catch_up(self) -> None:
-        """Runs on every (re)connect: fetch missed candles, apply offline stops, process a fresh bar."""
-        new_closed: dict[int, dict[str, dict]] = {}
+    async def catch_up(self, bar_stops: bool = False) -> None:
+        """Runs on every (re)connect: fetch missed candles, apply offline stops, process a fresh bar.
+
+        bar_stops=True (hourly/scheduled mode, no live ticks): the latest bar's high/low is also
+        checked against stops before the decision, exactly like the backtester."""
         for s in self.symbols:
             last = self.db.last_candle_time(s, self.interval)
             since = last + self.step if last else now_ms() - 3 * self.step
@@ -175,19 +177,23 @@ class LiveEngine:
             for r in rows:
                 if r["closed"]:
                     self._append_candle(s, r)
-                    new_closed.setdefault(r["open_time"], {})[s] = r
                 self.prices[s] = r["close"]
         latest = max((self.frames[s].index[-1] for s in self.symbols if not self.frames[s].empty), default=None)
         if latest is None:
             return
         if self.last_processed is None:
             self.last_processed = latest - self.step
-        gap = sorted(t for t in new_closed if self.last_processed < t < latest)
-        for t in gap:  # stops that would have triggered while we were offline
-            for s, bar in new_closed[t].items():
-                self.reconcile_bar(s, bar, t)
-        if gap:
-            self.event("warn", "data", f"recovered {len(gap)} missed bar(s); stops re-checked against their high/low")
+        times = sorted({t for s in self.symbols for t in self.frames[s].index if self.last_processed < t})
+        gap = [t for t in times if t < latest or (bar_stops and t == latest)]
+        for t in gap:  # stops that would have triggered between decisions
+            for s in self.symbols:
+                f = self.frames[s]
+                if t in f.index:
+                    r = f.loc[t]
+                    self.reconcile_bar(s, {"open": r["open"], "high": r["high"], "low": r["low"]}, t, offline=not bar_stops)
+        missed = [t for t in gap if t < latest]
+        if missed:
+            self.event("warn", "data", f"recovered {len(missed)} missed bar(s); stops re-checked against their high/low")
         fresh = now_ms() - (latest + self.step) < self.step or self.source.name == "sim"
         if latest > self.last_processed:
             if fresh:
@@ -195,13 +201,13 @@ class LiveEngine:
             else:
                 self.mark_processed(latest)
 
-    def reconcile_bar(self, s: str, bar: dict, t: int) -> None:
+    def reconcile_bar(self, s: str, bar: dict, t: int, offline: bool = True) -> None:
         for name, pf in self.portfolios.items():
             if name == BENCH:
                 continue
             ct = self.core.check_bar(pf, s, bar, t)
             if ct:
-                self.record_exit(pf, ct, offline=True)
+                self.record_exit(pf, ct, offline=offline)
             elif s in pf.positions:
                 self.dirty.add((name, s))
 
