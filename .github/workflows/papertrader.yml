@@ -11,6 +11,7 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  models: read      # free GitHub Models access for the AI agent (no API key)
 
 concurrency:
   group: paper-trader
@@ -48,6 +49,7 @@ jobs:
         run: python -m papertrader --config config.yaml step --site site
         env:
           PT_DATA_SOURCE: auto
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Save bot state
         if: always()

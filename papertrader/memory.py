@@ -114,9 +114,14 @@ class Memory:
         return done
 
     def scorecard(self) -> dict:
-        res = self.db.query("SELECT * FROM forecasts WHERE resolved=1")
-        pending = self.db.query("SELECT * FROM forecasts WHERE resolved=0 ORDER BY made_day DESC, symbol LIMIT 6")
-        out = {"resolved": len(res), "pending": pending}
+        allres = self.db.query("SELECT * FROM forecasts WHERE resolved=1")
+        res = [r for r in allres if r["source"] != "AI agent"]
+        ai = [r for r in allres if r["source"] == "AI agent"]
+        pending = self.db.query("SELECT * FROM forecasts WHERE resolved=0 AND source != 'AI agent' ORDER BY made_day DESC, symbol LIMIT 6")
+        out = {"resolved": len(res), "pending": pending,
+               "ai": {"resolved": len(ai),
+                      "brier": float(np.mean([(r["p_up"] - r["went_up"]) ** 2 for r in ai])) if ai else None,
+                      "direction_hit_rate": float(np.mean([(r["p_up"] >= 0.5) == bool(r["went_up"]) for r in ai])) if ai else None}}
         if res:
             br = [(r["p_up"] - r["went_up"]) ** 2 for r in res]
             out.update({
@@ -158,6 +163,11 @@ class Memory:
         if forecasts:
             lines.append("Expects (7 days): " + "; ".join(
                 f"{f['symbol'][:-4]} {f['low']:,.0f}–{f['high']:,.0f} ({f['p_up'] * 100:.0f}% chance higher)" for f in forecasts) + ".")
+        hist = self.db.kv_get("agent_history", []) or []
+        if hist and hist[-1].get("day") == day_ms:
+            a = hist[-1]
+            lines.append("AI agent: " + ", ".join(f"{s[:-4]} {w * 100:.0f}%" for s, w in a["allocations"].items())
+                         + f" — {a['reasoning']}")
         info = getattr(eng.meta, "info", {}) or {}
         if info.get("status") == "active":
             lines.append(f"Memory: has studied {info['trades']} past trend trades; recent ones won {info['recent_win_rate'] * 100:.0f}%.")

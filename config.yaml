@@ -46,7 +46,14 @@ strategies:
   # adaptive_trend = daily_trend + learning from its own failed trades (research/RESULTS.md, round 2)
   # steady_trend = adaptive_trend + a drawdown goal (30%) pursued with the options market's volatility forecast (round 3)
   enabled: [adaptive_trend, steady_trend, daily_trend, breakout, ensemble, trend, mean_reversion, ml]
-  primary: adaptive_trend # shown first on the dashboard
+  primary: ai_agent       # shown first on the dashboard
+
+# AI agent: a large language model (free via GitHub Models, using the workflow's GITHUB_TOKEN) that reads a daily
+# briefing plus its own memory and decides its own allocations. Untestable on history, so the research bots above
+# keep running as its benchmarks. It only outputs numbers; fills are simulated and capped at 33% per coin.
+agent:
+  enabled: true
+  models: [openai/gpt-4.1, openai/gpt-4.1-mini, openai/gpt-4o-mini]   # tried in order
 
 # Daily strategies hold for days to weeks, so they get their own risk settings:
 # full 1/3 allocation per coin, a wide safety stop, and no daily-loss / tight drawdown brakes
@@ -58,10 +65,12 @@ strategy_risk:
   breakout: *daily_risk
   adaptive_trend: *daily_risk
   steady_trend: *daily_risk
+  ai_agent: *daily_risk
 
 # Explicit goals per bot, tracked on the dashboard and in the daily journal.
 goals:
   default: {beat_buy_hold: true}
+  ai_agent: {beat_buy_hold: true, max_drawdown: 0.30}
   adaptive_trend: {beat_buy_hold: true, max_drawdown: 0.35, annual_return: 0.20}
   steady_trend: {beat_buy_hold: true, max_drawdown: 0.30, annual_return: 0.15}
   daily_trend: {beat_buy_hold: true, max_drawdown: 0.40}
@@ -98,7 +107,7 @@ backtest:
 
 notify:
   ntfy_topic: papertrader-gus-5010d87dbb   # subscribe to this in the free ntfy app (blank = off)
-  portfolios: [adaptive_trend]  # whose trades send a push message (add breakout, ensemble, ... for more)
+  portfolios: [ai_agent, adaptive_trend]  # whose trades send a push message (add breakout, ensemble, ... for more)
   daily_summary_hour_utc: 1   # 01:00 UTC = 08:00 in Bangkok, 02:00 in Lausanne (winter); 6 = 07:00 Lausanne
   dashboard_url: https://gusluberadzki-ai.github.io/crypto-trader/
 

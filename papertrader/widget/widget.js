@@ -93,7 +93,7 @@ function build(d, famOverride) {
     for (const it of items) { const r = c.addStack(); if (alignRight) r.addSpacer(); render(r, it); if (!alignRight) r.addSpacer(); }
   };
   const shown = [main, ...d.portfolios.filter((p) => p !== main).sort((a, b) => b.return - a.return)].slice(0, 4);
-  const short = { adaptive_trend: "Adaptive", daily_trend: "Daily", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly", mean_reversion: "Mean rev", ml: "ML" };
+  const short = { ai_agent: "AI agent", steady_trend: "Steady", adaptive_trend: "Adaptive", daily_trend: "Daily", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly", mean_reversion: "Mean rev", ml: "ML" };
   col(row, 62, shown, (r, p) => text(r, short[p.name] || p.label, 10, MUTED), false);
   col(row, 44, shown, (r, p) => text(r, pct(p.return), 10, colr(p.return), false, true), true);
   row.addSpacer();

@@ -181,7 +181,7 @@ def create_app(cfg: dict, start_engine: bool = True, engine: LiveEngine | None =
     def portfolios():
         if not engine.portfolios:
             return []
-        rows = [summary(n) for n in [*engine.names, BENCH] if n in engine.portfolios]
+        rows = [summary(n) for n in engine.order if n in engine.portfolios]
         bh = next((r for r in rows if r["name"] == BENCH), None)
         for r in rows:
             r["vs_buy_hold"] = r["total_return"] - bh["total_return"] if bh else None
@@ -239,6 +239,7 @@ def create_app(cfg: dict, start_engine: bool = True, engine: LiveEngine | None =
             "scorecard": engine.memory.scorecard(),
             "goals": {r["name"]: goal_status(cfg, r, bh) for r in rows},
             "mood": describe(vals),
+            "agent": engine.agent.summary(),
             "signals": vals,
         })
 

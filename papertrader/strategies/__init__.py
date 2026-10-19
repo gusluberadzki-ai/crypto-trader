@@ -284,7 +284,8 @@ BASE_ORDER = ["trend", "mean_reversion", "ml", "daily_trend", "breakout", "adapt
 LABELS = {"trend": TrendStrategy.label, "mean_reversion": MeanReversionStrategy.label, "ml": MLStrategy.label,
           "ensemble": EnsembleStrategy.label, "buy_hold": "Buy & hold (benchmark)",
           "daily_trend": DailyTrendStrategy.label, "breakout": BreakoutStrategy.label,
-          "adaptive_trend": AdaptiveTrendStrategy.label, "steady_trend": SteadyTrendStrategy.label}
+          "adaptive_trend": AdaptiveTrendStrategy.label, "steady_trend": SteadyTrendStrategy.label,
+          "ai_agent": "AI agent"}
 
 
 def build_strategies(cfg: dict, models, meta=None, signals=None) -> dict:

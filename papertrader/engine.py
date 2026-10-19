@@ -24,6 +24,7 @@ from .db import DB, now_ms
 from .features import features_for_all
 from .market import make_source
 from .metrics import clean
+from .agent import NAME as AGENT, AIAgent
 from .memory import Memory
 from .meta import MetaLearner
 from .signals import MarketSignals
@@ -93,6 +94,8 @@ class LiveEngine:
         self.signals = MarketSignals()
         self.signals.load_db(db)
         self.memory = Memory(db, cfg)
+        self.agent = AIAgent(cfg, db)
+        self.order = ([AGENT] if self.agent.enabled else []) + [n for n in cfg["strategies"]["enabled"]] + [BENCH]
         self.strategies = build_strategies(cfg, self.models, self.meta, self.signals)
         self.names: list[str] = list(cfg["strategies"]["enabled"])
         self.portfolios: dict[str, Portfolio] = {}
@@ -211,7 +214,7 @@ class LiveEngine:
         return out
 
     def daily_memory(self) -> None:
-        """Once per completed day: check last week's forecasts, make new ones, write the journal."""
+        """Once per completed day: check last week's forecasts and make new ones."""
         try:
             close = self.daily_close()
             if close.empty:
@@ -219,15 +222,35 @@ class LiveEngine:
             day = int(close.index[-1].value // 1_000_000)
             if self.db.kv_get("last_memory_day") == day:
                 return
-            resolved = self.memory.resolve(close)
-            forecasts = self.memory.make_forecasts(close, self.signals.values_on(day))
-            text = self.memory.write_journal(self, day, forecasts, resolved, self.portfolio_summaries())
+            self._mem_today = (day, self.memory.resolve(close), self.memory.make_forecasts(close, self.signals.values_on(day)))
             self.db.kv_set("last_memory_day", day)
+        except Exception as exc:
+            log.exception("daily memory failed")
+            self.event("warn", "journal", f"could not update forecasts ({exc})")
+
+    def write_daily_journal(self) -> None:
+        m = getattr(self, "_mem_today", None)
+        if not m:
+            return
+        try:
+            day, resolved, forecasts = m
+            text = self.memory.write_journal(self, day, forecasts, resolved, self.portfolio_summaries())
             if text:
                 self.event("info", "journal", text[:300])
         except Exception as exc:
-            log.exception("daily memory failed")
+            log.exception("journal failed")
             self.event("warn", "journal", f"could not write today's journal ({exc})")
+        self._mem_today = None
+
+    async def daily_cycle(self) -> None:
+        """Forecasts -> AI agent decision -> journal (once per completed day)."""
+        self.daily_memory()
+        try:
+            await self.agent.step(self)
+        except Exception as exc:
+            log.exception("AI agent failed")
+            self.event("error", "ai-agent", f"AI agent step failed: {exc}")
+        self.write_daily_journal()
 
     def bench_failing_bots(self, min_trades: int = 30) -> None:
         """Learning at the bot level: a fast-trading bot that has clearly been losing per trade stops opening new
@@ -484,7 +507,7 @@ class LiveEngine:
     def load_portfolios(self) -> None:
         bal = float(self.cfg["starting_balance"])
         rows = {r["name"]: r for r in self.db.query("SELECT * FROM portfolios")}
-        for name in [*self.names, BENCH]:
+        for name in self.order:
             r = rows.get(name)
             if r is None:
                 pf = Portfolio.new(name, bal)
@@ -629,7 +652,7 @@ class LiveEngine:
                 await self.retrain("scheduled")
                 await self.learn()
             await self.update_signals()
-            self.daily_memory()
+            await self.daily_cycle()
             await asyncio.sleep(300)
 
     # ================================================================ housekeeping

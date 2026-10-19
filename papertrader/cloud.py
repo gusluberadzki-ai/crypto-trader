@@ -43,7 +43,7 @@ async def run_step(cfg: dict, site_dir: str | None) -> None:
     await eng.update_signals()
     before = (db.one("SELECT MAX(id) AS m FROM decisions") or {}).get("m") or 0
     await eng.catch_up(bar_stops=True)
-    eng.daily_memory()
+    await eng.daily_cycle()
     eng.ready = True
     from .notify import daily_summary, hello, trade_alerts
     hello(cfg, db)
@@ -76,7 +76,7 @@ def export_site(cfg: dict, eng: LiveEngine, out: Path) -> None:
     client = TestClient(create_app(cfg, start_engine=False, engine=eng))  # no `with`: lifespan not started
     get = lambda path: client.get(path).json()
     primary = cfg["strategies"]["primary"]
-    pfs = [*eng.names, BENCH]
+    pfs = list(eng.order)
     status = get("/api/status")
     status["generated_at"] = now_ms()
     data = {

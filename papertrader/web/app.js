@@ -5,9 +5,10 @@
   const STATIC = !!window.PT_STATIC;
   if (STATIC) document.body.classList.add("static");
 
-  const COLORS = { adaptive_trend: "#f2c94c", steady_trend: "#ff8fa3", daily_trend: "#2ebd85", breakout: "#5fb8ff", ensemble: "#8b9dff", trend: "#36c2b4", mean_reversion: "#f5b14c", ml: "#d48cff", buy_hold: "#8a94a6" };
-  const LABELS = { adaptive_trend: "Adaptive trend", steady_trend: "Steady trend", daily_trend: "Daily trend", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly trend", mean_reversion: "Mean reversion", ml: "Machine learning", buy_hold: "Buy & hold" };
+  const COLORS = { ai_agent: "#c792ff", adaptive_trend: "#f2c94c", steady_trend: "#ff8fa3", daily_trend: "#2ebd85", breakout: "#5fb8ff", ensemble: "#8b9dff", trend: "#36c2b4", mean_reversion: "#f5b14c", ml: "#d48cff", buy_hold: "#8a94a6" };
+  const LABELS = { ai_agent: "AI agent", adaptive_trend: "Adaptive trend", steady_trend: "Steady trend", daily_trend: "Daily trend", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly trend", mean_reversion: "Mean reversion", ml: "Machine learning", buy_hold: "Buy & hold" };
   const DESC = {
+    ai_agent: "A large language model that reads a daily briefing (prices, trends, options-market forecasts, sentiment, the research findings) plus its own memory, then decides its allocations and explains why. Its record can only be judged live — the research bots are its benchmark.",
     steady_trend: "Adaptive trend with a goal: keep drawdowns under 30%. It sizes positions using the options market's forecast of how much prices will swing, holding less when big moves are expected.",
     adaptive_trend: "Daily trend that learns from failure: a model studies every past trade of the rule (which ones lost, and in what conditions) and bets less on entries that look like past losers.",
     daily_trend: "Research winner. Holds a coin while it's above its 100-day average and up over 30 days; altcoins only while BTC is in an uptrend. Checks once a day.",
@@ -258,6 +259,25 @@
       <div class="t2"><span>${esc(g.now)}${g.text ? " · " + esc(g.text) : ""}</span></div></div></div>`).join("");
   }
 
+  function renderAgent() {
+    const A = S.D.memory?.agent; const el = $("agent"); if (!el) return;
+    if (!A) { el.innerHTML = `<div class="empty">AI agent not set up.</div>`; return; }
+    const st = A.status || {}, L = A.last;
+    let h = `<div class="t1" style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span class="tag ${st.ok ? "win" : st.error ? "loss" : ""}">${st.ok ? "thinking daily" : st.error ? "couldn't think" : "waiting for first run"}</span>
+      <span class="faint" style="font-size:12px">${L ? esc(L.model) + " · " + L.date : ""}</span></div>`;
+    if (st.error && !st.ok) h += `<p class="note" style="margin:0 0 8px">${esc(st.error)}</p>`;
+    if (L) {
+      h += `<p class="explain" style="color:#d6dbe5">“${esc(L.reasoning)}”</p>
+        <div class="stack compact">${Object.entries(L.allocations).map(([s, w]) => `<div class="row"><div class="coin ${coin(s)}">${coin(s)}</div><div class="main">
+          <div class="t1"><span>${(w * 100).toFixed(0)}% of equity</span><span class="mono">${L.outlook_7d?.[s] != null ? (L.outlook_7d[s] * 100).toFixed(0) + "% ↑ in 7d" : ""}</span></div>
+          <div class="t2" style="white-space:normal"><span style="white-space:normal">${esc(L.per_coin?.[s] || "")}</span></div></div></div>`).join("")}</div>
+        <p class="note">Confidence ${(L.confidence * 100).toFixed(0)}%.</p>`;
+    }
+    h += `<div class="learn-block" style="margin-top:10px"><div class="t1"><b>Its notebook</b><span class="faint" style="margin-left:auto;font-size:12px">notes it writes to itself</span></div>
+      ${A.notes?.length ? `<ul class="lessons">${A.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : `<p class="explain" style="margin:0">Empty so far — it adds lessons as it trades and removes ones that proved wrong.</p>`}</div>`;
+    el.innerHTML = h;
+  }
+
   function renderMemory() {
     const M = S.D.memory || {};
     const j = M.journal || [];
@@ -275,6 +295,8 @@
     } else {
       h += `<p class="explain">Every day the bot writes down a 7-day forecast for each coin: a price range (from what the options market expects) and a chance of being higher (from its memory of what usually happened after similar trends). A week later it checks itself. In our 2021–2026 test the ranges were reliable, but up/down calls were no better than a coin flip — this scorecard will show whether that holds live.</p>`;
     }
+    if (sc.ai?.resolved) h += `<p class="explain"><b>AI agent's up/down calls:</b> ${sc.ai.resolved} checked, right ${pct(sc.ai.direction_hit_rate, 0, false)} of the time, score ${sc.ai.brier.toFixed(3)} vs 0.250 for a coin flip — ${sc.ai.brier < 0.245 ? "better than guessing so far" : "no better than guessing so far"}.</p>`;
+    else h += `<p class="note">The AI agent also makes daily up/down calls; its accuracy shows here after the first week.</p>`;
     const pend = sc.pending || [];
     if (pend.length) h += `<div class="stack compact">${pend.map((f) => `<div class="row"><div class="coin ${coin(f.symbol)}">${coin(f.symbol)}</div><div class="main"><div class="t1"><span class="mono">${price(f.low)} – ${price(f.high)}</span><span class="mono">${(f.p_up * 100).toFixed(0)}% ↑</span></div>
       <div class="t2"><span>made ${new Date(f.made_day).toLocaleDateString([], { day: "numeric", month: "short", timeZone: "UTC" })} at ${price(f.price)} · checks in ${f.horizon} days</span><span>${f.source.includes("options") ? "options-implied" : "recent vol"}</span></div></div></div>`).join("")}</div>`;
@@ -439,7 +461,7 @@
     if (!S.D.portfolios?.length) return;
     if (!S.pf || !pf(S.pf)) S.pf = S.D.status?.primary || S.D.portfolios[0].name;
     renderStatus(); renderChips(); renderHero(); renderStats(); renderPositions(); renderThinking(); renderActivity();
-    renderTradeTab(); renderGoals(); renderMemory(); renderLearning(); renderLeaderboard(); renderEquity(); renderModels(); renderLog(); renderCoins(); renderSims();
+    renderTradeTab(); renderGoals(); renderMemory(); renderAgent(); renderLearning(); renderLeaderboard(); renderEquity(); renderModels(); renderLog(); renderCoins(); renderSims();
     if (S.tab === "market") renderPriceChart();
   }
 

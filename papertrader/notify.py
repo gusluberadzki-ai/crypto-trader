@@ -70,12 +70,13 @@ def daily_summary(cfg: dict, eng: LiveEngine) -> None:
     bh = eng.portfolios[BENCH]
     bh_ret = bh.equity(eng.prices) / bh.start_balance - 1
     lines = []
-    for name in [*eng.names, BENCH]:
+    for name in eng.order:
         pf = eng.portfolios[name]
         ret = pf.equity(eng.prices) / pf.start_balance - 1
         n = eng.db.one("SELECT COUNT(*) AS n FROM trades WHERE portfolio=? AND status='closed'", (name,))["n"]
         lines.append(f"{LABELS.get(name, name).split(' (')[0]}: {ret * 100:+.2f}%" + ("" if name == BENCH else f" ({n} trades)"))
-    best = max(eng.names, key=lambda n: eng.portfolios[n].equity(eng.prices))
+    bots = [n for n in eng.order if n != BENCH and n in eng.portfolios]
+    best = max(bots, key=lambda n: eng.portfolios[n].equity(eng.prices))
     beat = eng.portfolios[best].equity(eng.prices) / eng.portfolios[best].start_balance - 1 > bh_ret
     lines.append(f"{LABELS[best].split(' (')[0]} is beating buy & hold." if beat else "No strategy is beating buy & hold yet.")
     try:

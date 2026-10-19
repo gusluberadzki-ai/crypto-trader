@@ -74,6 +74,16 @@ Binance WebSocket ──► candles (SQLite) ──► indicators ──► stra
 
 **Explanations**: every decision gets a plain-language explanation built from the indicator values, the ML model's probability, and a sensitivity analysis showing which features pushed that probability up or down.
 
+## AI agent
+
+The main bot is an **AI agent**: a large language model (GPT-4.1 by default, via the free GitHub Models API using the
+workflow's `GITHUB_TOKEN` — no API key or card) that gets a daily briefing — prices and indicators, the options market's
+volatility forecast, leverage crowding and sentiment, what the research bots hold, the research findings, its own
+portfolio, goals and memory (notes to itself, recent decisions, closed trades with post-mortems, forecast accuracy) —
+and replies with target allocations, reasoning, 7-day outlooks and notebook updates. The engine validates everything
+(long-only, max 33% per coin, safety stops) and simulates the fills. A language model can't be fairly backtested (it may
+remember historical prices), so its live paper record is the real test; the research bots run beside it as benchmarks.
+
 ## Memory, goals and forward-looking data
 
 - **Memory:** every trade, decision and price is stored; the Adaptive-trend model re-learns daily from all past trades of its rule; each day the bot writes a **journal** entry and **7-day forecasts** (price range from the options market's implied volatility, chance of being higher from its memory of similar trend states), then checks them a week later and keeps a scorecard.
