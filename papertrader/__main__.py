@@ -49,6 +49,7 @@ def main(argv: list[str] | None = None) -> None:
     st = sub.add_parser("step", help="one scheduled run (used by GitHub Actions): update, decide, export site")
     st.add_argument("--site", default="site", help="folder for the static dashboard")
     st.add_argument("--sim", action="store_true")
+    sub.add_parser("agent-due", help="print true if the AI agent still has to make today's decision")
     z = sub.add_parser("reset", help="reset paper portfolios")
     z.add_argument("--yes", action="store_true")
     z.add_argument("--sim", action="store_true")
@@ -100,6 +101,18 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "step":
         from .cloud import run_step
         asyncio.run(run_step(cfg, args.site))
+
+    elif args.cmd == "agent-due":
+        import time as _t
+        from .db import DB
+        if not (cfg.get("agent") or {}).get("enabled") or not Path(cfg["storage"]["db_path"]).exists():
+            print("true" if (cfg.get("agent") or {}).get("enabled") else "false")
+            return
+        db = DB(cfg["storage"]["db_path"])
+        day = int(_t.time() * 1000) // 86_400_000 * 86_400_000 - 86_400_000   # latest completed UTC day
+        tries = db.kv_get("agent_tries", {}) or {}
+        due = db.kv_get("agent_last_day") != day and tries.get(str(day), 0) < 3
+        print("true" if due else "false")
 
     elif args.cmd == "reset":
         if not args.yes:

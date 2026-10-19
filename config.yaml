@@ -48,12 +48,13 @@ strategies:
   enabled: [adaptive_trend, steady_trend, daily_trend, breakout, ensemble, trend, mean_reversion, ml]
   primary: ai_agent       # shown first on the dashboard
 
-# AI agent: a large language model (free via GitHub Models, using the workflow's GITHUB_TOKEN) that reads a daily
-# briefing plus its own memory and decides its own allocations. Untestable on history, so the research bots above
+# AI agent: a large language model that reads a daily briefing plus its own memory and decides its own allocations.
+# On GitHub it runs a free open-source model (Qwen 2.5 7B) on the runner via Ollama once a day; set LLM_BASE_URL,
+# LLM_MODEL and LLM_API_KEY to use any OpenAI-compatible service instead. Untestable on history, so the research bots
 # keep running as its benchmarks. It only outputs numbers; fills are simulated and capped at 33% per coin.
 agent:
   enabled: true
-  models: [openai/gpt-4.1, openai/gpt-4.1-mini, openai/gpt-4o-mini]   # tried in order
+  models: [qwen2.5:7b]
 
 # Daily strategies hold for days to weeks, so they get their own risk settings:
 # full 1/3 allocation per coin, a wide safety stop, and no daily-loss / tight drawdown brakes

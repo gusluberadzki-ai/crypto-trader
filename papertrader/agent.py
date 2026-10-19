@@ -6,7 +6,9 @@ its own portfolio and goals, and its MEMORY (its notes to itself, its recent dec
 trades with post-mortems, and how accurate its past forecasts were). It replies with target allocations, plain-English
 reasoning, 7-day outlooks and updates to its own notes. Those notes are fed back next day, so it learns over time.
 
-Model access: GitHub Models (free, OpenAI-compatible) using the workflow's GITHUB_TOKEN - no API key needed.
+Model access: any OpenAI-compatible chat endpoint given by LLM_BASE_URL / LLM_MODEL / LLM_API_KEY. On GitHub Actions the
+workflow runs a free open-source model (Qwen 2.5, 7B parameters) locally on the runner with Ollama once a day - no API
+key, no account, no cost. (GitHub's own hosted models were retired on 30 July 2026.)
 Everything stays paper: the model only outputs numbers; the engine validates them and simulates the fills.
 It cannot be fairly backtested (a language model may remember historical prices), so its live paper record is
 the real test - which is why the research bots keep running next to it as benchmarks.
@@ -30,7 +32,6 @@ from .signals import dvol_for
 
 log = logging.getLogger("papertrader.agent")
 NAME = "ai_agent"
-ENDPOINT = "https://models.github.ai/inference/chat/completions"
 MAX_W = 0.33
 DAY = 86_400_000
 
@@ -71,7 +72,7 @@ class AIAgent:
     def __init__(self, cfg: dict, db):
         self.cfg, self.db = cfg, db
         a = cfg.get("agent") or {}
-        self.models = a.get("models") or ["openai/gpt-4.1", "openai/gpt-4.1-mini", "openai/gpt-4o-mini"]
+        self.models = a.get("models") or ["qwen2.5:7b"]
         self.enabled = a.get("enabled", True)
 
     # ------------------------------------------------------------------ memory
@@ -143,21 +144,25 @@ class AIAgent:
 
     # ------------------------------------------------------------------ model call
     async def ask(self, brief: dict) -> tuple[dict | None, str, str]:
-        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_MODELS_TOKEN")
-        if not token:
-            return None, "", "no GITHUB_TOKEN available (the AI agent only runs on GitHub Actions or with a token)"
+        base = os.environ.get("LLM_BASE_URL", "").rstrip("/")
+        if not base:
+            return None, "", "no language model available this run (LLM_BASE_URL not set)"
+        key = os.environ.get("LLM_API_KEY", "")
+        models = [m for m in os.environ.get("LLM_MODEL", "").split(",") if m] or self.models
+        headers = {"Content-Type": "application/json"}
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
         msgs = [{"role": "system", "content": SYSTEM},
                 {"role": "user", "content": "Today's briefing (JSON):\n" + json.dumps(brief, separators=(",", ":"))}]
         errors = []
-        async with httpx.AsyncClient(timeout=90, follow_redirects=True) as c:
-            for model in self.models:
+        async with httpx.AsyncClient(timeout=900, follow_redirects=True) as c:
+            for model in models:
                 for attempt in range(2):
                     try:
                         body = {"model": model, "messages": msgs, "temperature": 0.2, "max_tokens": 900}
                         if attempt == 0:
                             body["response_format"] = {"type": "json_object"}
-                        r = await c.post(ENDPOINT, json=body, headers={"Authorization": f"Bearer {token}",
-                                                                      "Content-Type": "application/json"})
+                        r = await c.post(f"{base}/chat/completions", json=body, headers=headers)
                         if r.status_code == 429:
                             errors.append(f"{model}: rate limited")
                             break
@@ -214,6 +219,11 @@ class AIAgent:
             return None
         brief = self.briefing(eng, close)
         raw, model, err = await self.ask(brief)
+        if os.environ.get("LLM_BASE_URL"):
+            tries = self.db.kv_get("agent_tries", {}) or {}
+            tries = {k: v for k, v in tries.items() if int(k) >= day_ms - 7 * DAY}
+            tries[str(day_ms)] = tries.get(str(day_ms), 0) + 1
+            self.db.kv_set("agent_tries", tries)
         if raw is None:
             self.db.kv_set("agent_status", {"ok": False, "error": err, "time": int(time.time() * 1000)})
             eng.event("warn", "ai-agent", f"AI agent could not think today ({err}); it keeps its positions")

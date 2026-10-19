@@ -76,8 +76,9 @@ Binance WebSocket ──► candles (SQLite) ──► indicators ──► stra
 
 ## AI agent
 
-The main bot is an **AI agent**: a large language model (GPT-4.1 by default, via the free GitHub Models API using the
-workflow's `GITHUB_TOKEN` — no API key or card) that gets a daily briefing — prices and indicators, the options market's
+The main bot is an **AI agent**: a large language model (by default the open-source Qwen 2.5 7B, run for free on the
+GitHub Actions machine with Ollama once a day — no API key, account or card; set `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY`
+to use any OpenAI-compatible service instead) that gets a daily briefing — prices and indicators, the options market's
 volatility forecast, leverage crowding and sentiment, what the research bots hold, the research findings, its own
 portfolio, goals and memory (notes to itself, recent decisions, closed trades with post-mortems, forecast accuracy) —
 and replies with target allocations, reasoning, 7-day outlooks and notebook updates. The engine validates everything

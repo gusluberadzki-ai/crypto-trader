@@ -11,13 +11,12 @@ permissions:
   contents: write
   pages: write
   id-token: write
-  models: read      # free GitHub Models access for the AI agent (no API key)
 
 jobs:
   # Trading never waits for the website: it runs in its own job, one at a time.
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     concurrency:
       group: paper-trader-trading
       cancel-in-progress: false
@@ -42,11 +41,25 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      - name: Is the AI agent due today?
+        id: agent
+        run: echo "due=$(python -m papertrader --config config.yaml agent-due 2>/dev/null | tail -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Start the AI model (free, open-source, runs on this machine)
+        if: steps.agent.outputs.due == 'true'
+        continue-on-error: true
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          (ollama serve > /tmp/ollama.log 2>&1 &) ; sleep 3
+          for i in $(seq 1 30); do curl -s localhost:11434/api/version && break; sleep 2; done
+          ollama pull qwen2.5:7b
+          echo "LLM_BASE_URL=http://localhost:11434/v1" >> "$GITHUB_ENV"
+          echo "LLM_MODEL=qwen2.5:7b" >> "$GITHUB_ENV"
+
       - name: Trading step
         run: python -m papertrader --config config.yaml step --site site
         env:
           PT_DATA_SOURCE: auto
-          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Save bot state
         if: always()
