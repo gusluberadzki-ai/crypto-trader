@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install httpx
-      - run: mkdir out && cd out && python ../research/fetch_history.py
+      - run: mkdir out && cd out && python ../research/fetch_history.py && python ../research/fetch_signals.py
       - run: |
           cd out && git init -q -b research-data && git add -A
           git -c user.name="papertrader-bot" -c user.email="actions@users.noreply.github.com" commit -qm "price history $(date -u +%F)"
