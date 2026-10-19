@@ -74,6 +74,12 @@ Binance WebSocket ──► candles (SQLite) ──► indicators ──► stra
 
 **Explanations**: every decision gets a plain-language explanation built from the indicator values, the ML model's probability, and a sensitivity analysis showing which features pushed that probability up or down.
 
+## Memory, goals and forward-looking data
+
+- **Memory:** every trade, decision and price is stored; the Adaptive-trend model re-learns daily from all past trades of its rule; each day the bot writes a **journal** entry and **7-day forecasts** (price range from the options market's implied volatility, chance of being higher from its memory of similar trend states), then checks them a week later and keeps a scorecard.
+- **Goals:** each bot has explicit goals in `config.yaml` (beat buy & hold, maximum drawdown, yearly return), tracked on the dashboard and in the journal. Steady trend actively pursues a 30% drawdown limit by sizing with implied volatility.
+- **Forward-looking data:** Deribit implied volatility (DVOL), perpetual funding (leverage crowding) and the Fear & Greed index. In 2021–2026 tests only implied volatility helped (lower drawdowns); trading on funding or sentiment made results worse, so those are shown as context only. Up/down forecasts were no better than a coin flip; the range forecasts were reliable. See `research/RESULTS.md` round 3.
+
 ## Reading the results honestly
 
 - A few weeks of hourly trading gives tens of trades per strategy. The dashboard prints a significance note: under ~30 trades, results are mostly luck.

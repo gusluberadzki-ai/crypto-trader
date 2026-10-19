@@ -78,5 +78,18 @@ def daily_summary(cfg: dict, eng: LiveEngine) -> None:
     best = max(eng.names, key=lambda n: eng.portfolios[n].equity(eng.prices))
     beat = eng.portfolios[best].equity(eng.prices) / eng.portfolios[best].start_balance - 1 > bh_ret
     lines.append(f"{LABELS[best].split(' (')[0]} is beating buy & hold." if beat else "No strategy is beating buy & hold yet.")
+    try:
+        from .memory import goal_status
+        sums = {x["name"]: x for x in eng.portfolio_summaries()}
+        prim = cfg["strategies"]["primary"]
+        gs = goal_status(cfg, sums[prim], sums.get(BENCH)) if prim in sums else []
+        if gs:
+            lines.append("Goals: " + "; ".join(f"{g['goal'].lower()} - {g['status']}" for g in gs))
+        sc = eng.memory.scorecard()
+        if sc.get("resolved"):
+            lines.append(f"Forecasts checked: {sc['resolved']}, {sc['range_hit_rate'] * 100:.0f}% landed in range, "
+                         f"direction right {sc['direction_hit_rate'] * 100:.0f}%")
+    except Exception:
+        pass
     send(cfg, "PaperTrader daily summary", "\n".join(lines), "bar_chart", "low")
     eng.db.kv_set("last_summary_day", day)

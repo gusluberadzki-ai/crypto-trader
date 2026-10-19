@@ -33,7 +33,7 @@ def missing(row: pd.Series, cols) -> bool:
 
 class TrendStrategy:
     name = "trend"
-    label = "Trend following"
+    label = "Hourly trend"
 
     def __init__(self, cfg: dict):
         self.adx_min = cfg["trend"]["adx_min"]
@@ -248,15 +248,48 @@ class AdaptiveTrendStrategy(DailyTrendStrategy):
         return sig
 
 
-BASE_ORDER = ["trend", "mean_reversion", "ml", "daily_trend", "breakout", "adaptive_trend"]
+class SteadyTrendStrategy(AdaptiveTrendStrategy):
+    """Adaptive trend with an explicit GOAL - keep drawdowns under ~30% - pursued with a forward-looking signal:
+    positions are sized by the options market's forecast of volatility (Deribit DVOL). When the market expects
+    big swings, it holds less. Real-engine test 2021-2026: max drawdown 40% -> 29%, Sharpe 1.48 vs 1.50, lower total return."""
+    name = "steady_trend"
+    label = "Steady trend"
+    TARGET_VOL = 60.0
+
+    def __init__(self, cfg: dict, meta=None, signals=None):
+        super().__init__(cfg, meta)
+        self.signals = signals
+
+    def evaluate(self, symbol: str, row: pd.Series, ctx: dict) -> Signal:
+        sig = super().evaluate(symbol, row, ctx)
+        if sig.stance != "bull":
+            return sig
+        from ..signals import dvol_for
+        vals = self.signals.values_on(int(row.get("d_day", 0))) if self.signals is not None else {}
+        iv = dvol_for(symbol, vals)
+        if not iv:
+            sig.reasons.append("no implied-volatility forecast available, so no extra reduction")
+            return sig
+        m = clip(self.TARGET_VOL / iv, 0.25, 1.0)
+        sig.details["target_weight"] *= m
+        sig.details["vol_scale"] = m
+        sig.details["implied_vol"] = iv
+        week = iv / 100 * (7 / 365) ** 0.5 * 100
+        sig.reasons.append(f"goal: keep drawdowns under 30% — the options market expects about ±{week:.1f}% a week "
+                           f"(implied vol {iv:.0f}%), so it uses {m * 100:.0f}% of its normal size")
+        return sig
+
+
+BASE_ORDER = ["trend", "mean_reversion", "ml", "daily_trend", "breakout", "adaptive_trend", "steady_trend"]
 LABELS = {"trend": TrendStrategy.label, "mean_reversion": MeanReversionStrategy.label, "ml": MLStrategy.label,
           "ensemble": EnsembleStrategy.label, "buy_hold": "Buy & hold (benchmark)",
           "daily_trend": DailyTrendStrategy.label, "breakout": BreakoutStrategy.label,
-          "adaptive_trend": AdaptiveTrendStrategy.label}
+          "adaptive_trend": AdaptiveTrendStrategy.label, "steady_trend": SteadyTrendStrategy.label}
 
 
-def build_strategies(cfg: dict, models, meta=None) -> dict:
+def build_strategies(cfg: dict, models, meta=None, signals=None) -> dict:
     return {
+        "steady_trend": SteadyTrendStrategy(cfg, meta, signals),
         "adaptive_trend": AdaptiveTrendStrategy(cfg, meta),
         "trend": TrendStrategy(cfg),
         "mean_reversion": MeanReversionStrategy(cfg),

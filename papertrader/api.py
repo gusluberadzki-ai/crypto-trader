@@ -21,7 +21,9 @@ from .db import DB, now_ms
 from .engine import BENCH, Hub, LiveEngine
 from .features import ema
 from .metrics import clean, equity_stats, trade_stats
+from .memory import goal_status
 from .postmortem import CATEGORIES, EXPLAIN, classify, summarise
+from .signals import describe
 from .strategies import LABELS
 
 log = logging.getLogger("papertrader.api")
@@ -225,6 +227,20 @@ def create_app(cfg: dict, start_engine: bool = True, engine: LiveEngine | None =
             cat = classify(r)
             r["lesson"], r["lesson_label"] = cat, CATEGORIES[cat]
         return clean(rows)
+
+    @app.get("/api/memory")
+    def memory():
+        """Journal, forecast scorecard, goals per bot and the forward-looking market mood."""
+        rows = portfolios()
+        bh = next((r for r in rows if r["name"] == BENCH), None)
+        vals = engine.signals.latest()
+        return clean({
+            "journal": db.query("SELECT day, time, text FROM journal ORDER BY day DESC LIMIT 30"),
+            "scorecard": engine.memory.scorecard(),
+            "goals": {r["name"]: goal_status(cfg, r, bh) for r in rows},
+            "mood": describe(vals),
+            "signals": vals,
+        })
 
     @app.get("/api/learning")
     def learning():

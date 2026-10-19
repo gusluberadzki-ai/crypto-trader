@@ -44,7 +44,8 @@ strategies:
   # each gets its own $10k portfolio. daily_trend and breakout won the 2021-2026 walk-forward research
   # (see research/RESULTS.md); the hourly ones are kept for comparison.
   # adaptive_trend = daily_trend + learning from its own failed trades (research/RESULTS.md, round 2)
-  enabled: [adaptive_trend, daily_trend, breakout, ensemble, trend, mean_reversion, ml]
+  # steady_trend = adaptive_trend + a drawdown goal (30%) pursued with the options market's volatility forecast (round 3)
+  enabled: [adaptive_trend, steady_trend, daily_trend, breakout, ensemble, trend, mean_reversion, ml]
   primary: adaptive_trend # shown first on the dashboard
 
 # Daily strategies hold for days to weeks, so they get their own risk settings:
@@ -56,6 +57,15 @@ strategy_risk:
   daily_trend: &daily_risk {max_position_pct: 0.34, max_total_exposure: 1.0, daily_loss_limit: 1.0, max_drawdown_halt: 0.5, cooldown_bars: 24}
   breakout: *daily_risk
   adaptive_trend: *daily_risk
+  steady_trend: *daily_risk
+
+# Explicit goals per bot, tracked on the dashboard and in the daily journal.
+goals:
+  default: {beat_buy_hold: true}
+  adaptive_trend: {beat_buy_hold: true, max_drawdown: 0.35, annual_return: 0.20}
+  steady_trend: {beat_buy_hold: true, max_drawdown: 0.30, annual_return: 0.15}
+  daily_trend: {beat_buy_hold: true, max_drawdown: 0.40}
+  breakout: {beat_buy_hold: true, max_drawdown: 0.40}
 
 trend:
   adx_min: 20

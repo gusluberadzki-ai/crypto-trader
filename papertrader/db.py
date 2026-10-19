@@ -44,6 +44,12 @@ CREATE TABLE IF NOT EXISTS backtests(
 CREATE TABLE IF NOT EXISTS events(
     id INTEGER PRIMARY KEY AUTOINCREMENT, time INTEGER, level TEXT, source TEXT, message TEXT);
 CREATE TABLE IF NOT EXISTS kv(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS signals(day INTEGER, name TEXT, value REAL, PRIMARY KEY(day, name));
+CREATE TABLE IF NOT EXISTS forecasts(
+    id INTEGER PRIMARY KEY AUTOINCREMENT, made_day INTEGER, symbol TEXT, horizon INTEGER, price REAL,
+    low REAL, high REAL, p_up REAL, trend_state INTEGER, sample INTEGER, source TEXT,
+    resolved INTEGER DEFAULT 0, outcome REAL, inside INTEGER, went_up INTEGER);
+CREATE TABLE IF NOT EXISTS journal(day INTEGER PRIMARY KEY, time INTEGER, text TEXT);
 """
 
 

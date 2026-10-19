@@ -44,7 +44,7 @@ h2 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: -.005em; }
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: rgba(13,17,23,.94); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid var(--border); }
 .tabbar button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; color: var(--faint);
-  font-size: 10.5px; font-weight: 500; padding: 4px 0; cursor: pointer; }
+  font-size: 10px; min-width: 0; font-weight: 500; padding: 4px 0; cursor: pointer; }
 .tabbar svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .tabbar button.active { color: var(--accent); }
 
@@ -171,6 +171,11 @@ details.card[open] > summary { margin-bottom: 12px; }
 .sim-table .n { text-align: right; font-family: var(--mono); }
 .sim-table tr.best td { background: rgba(46,189,133,.06); }
 .takeaway { margin-top: 12px; padding: 11px 12px; border-radius: 11px; background: var(--surface-2); color: #c9d0dc; font-size: 13px; line-height: 1.55; }
+
+/* journal */
+.journal { background: var(--surface-2); border-radius: 12px; padding: 11px 12px; }
+.journal .jd { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; }
+.journal p { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: #c9d0dc; }
 
 /* learning */
 .learn-block { background: var(--surface-2); border-radius: 12px; padding: 12px; }

@@ -27,7 +27,7 @@ from .strategies import build_strategies, evaluate_all
 
 def run_backtest(cfg: dict, frames: dict[str, pd.DataFrame], days: int | None = None,
                  strategies: list[str] | None = None,
-                 progress: Callable[[str], None] | None = None) -> dict:
+                 progress: Callable[[str], None] | None = None, signals=None) -> dict:
     say = progress or (lambda m: None)
     t0 = time.time()
     step = INTERVAL_MS[cfg["interval"]]
@@ -76,12 +76,12 @@ def run_backtest(cfg: dict, frames: dict[str, pd.DataFrame], days: int | None = 
     broker, risk = PaperBroker(cfg), RiskManager(cfg)
     core = TradingCore(cfg, broker, risk)
     meta = None
-    if "adaptive_trend" in names:
+    if {"adaptive_trend", "steady_trend"} & set(names):
         from .meta import MetaLearner, daily_closes
         meta = MetaLearner()
         meta.build_walk_forward(daily_closes({s: frames[s] for s in symbols}), pd.Timestamp(start, unit="ms", tz="UTC"))
         say(f"learn-from-failure model: walk-forward sizes for {len(meta.day_prob)} trade-days")
-    strat = build_strategies(cfg, mm, meta)
+    strat = build_strategies(cfg, mm, meta, signals)
     bal = float(cfg["starting_balance"])
     pfs = {n: Portfolio.new(n, bal) for n in names}
     bench = Portfolio.new("buy_hold", bal)

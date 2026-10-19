@@ -40,8 +40,10 @@ async def run_step(cfg: dict, site_dir: str | None) -> None:
     if now_ms() - last_train >= cfg["ml"]["retrain_every_hours"] * 3_600_000:
         await eng.retrain("initial training" if first else "scheduled")
     await eng.learn()
+    await eng.update_signals()
     before = (db.one("SELECT MAX(id) AS m FROM decisions") or {}).get("m") or 0
     await eng.catch_up(bar_stops=True)
+    eng.daily_memory()
     eng.ready = True
     from .notify import daily_summary, hello, trade_alerts
     hello(cfg, db)
@@ -91,6 +93,7 @@ def export_site(cfg: dict, eng: LiveEngine, out: Path) -> None:
         "backtests": get("/api/backtests"),
         "latest": get("/api/latest"),
         "learning": get("/api/learning"),
+        "memory": get("/api/memory"),
         "sims": get("/api/sims"),
         "candles": {}, "markers": {}, "chart_positions": {}, "backtest_details": {},
     }

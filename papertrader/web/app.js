@@ -5,9 +5,10 @@
   const STATIC = !!window.PT_STATIC;
   if (STATIC) document.body.classList.add("static");
 
-  const COLORS = { adaptive_trend: "#f2c94c", daily_trend: "#2ebd85", breakout: "#5fb8ff", ensemble: "#8b9dff", trend: "#36c2b4", mean_reversion: "#f5b14c", ml: "#d48cff", buy_hold: "#8a94a6" };
-  const LABELS = { adaptive_trend: "Adaptive trend", daily_trend: "Daily trend", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly trend", mean_reversion: "Mean reversion", ml: "Machine learning", buy_hold: "Buy & hold" };
+  const COLORS = { adaptive_trend: "#f2c94c", steady_trend: "#ff8fa3", daily_trend: "#2ebd85", breakout: "#5fb8ff", ensemble: "#8b9dff", trend: "#36c2b4", mean_reversion: "#f5b14c", ml: "#d48cff", buy_hold: "#8a94a6" };
+  const LABELS = { adaptive_trend: "Adaptive trend", steady_trend: "Steady trend", daily_trend: "Daily trend", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly trend", mean_reversion: "Mean reversion", ml: "Machine learning", buy_hold: "Buy & hold" };
   const DESC = {
+    steady_trend: "Adaptive trend with a goal: keep drawdowns under 30%. It sizes positions using the options market's forecast of how much prices will swing, holding less when big moves are expected.",
     adaptive_trend: "Daily trend that learns from failure: a model studies every past trade of the rule (which ones lost, and in what conditions) and bets less on entries that look like past losers.",
     daily_trend: "Research winner. Holds a coin while it's above its 100-day average and up over 30 days; altcoins only while BTC is in an uptrend. Checks once a day.",
     breakout: "Buys when a coin closes above its 30-day high, sells when it drops below its 20-day low. Same BTC filter. Checks once a day.",
@@ -46,7 +47,7 @@
   async function fetchJSON(path) { const r = await fetch(path, { cache: "no-store" }); if (!r.ok) throw new Error(path + " " + r.status); return r.json(); }
   async function loadAll() {
     if (STATIC) { S.D = await fetchJSON(`data.json?t=${Date.now()}`); return; }
-    const names = ["status", "markets", "portfolios", "positions", "equity", "models", "events", "backtests", "latest", "sims", "learning"];
+    const names = ["status", "markets", "portfolios", "positions", "equity", "models", "events", "backtests", "latest", "sims", "learning", "memory"];
     const paths = { positions: "/api/positions", events: "/api/events?limit=120" };
     const res = await Promise.all(names.map((n) => fetchJSON(paths[n] || `/api/${n}`).catch(() => null)));
     const D = {}; names.forEach((n, i) => D[n] = res[i]);
@@ -247,6 +248,44 @@
     const p = pf(S.pf);
     $("sigNote").textContent = p?.significance_note ? `Honesty check: ${p.significance_note}.` : "";
   }
+  function renderGoals() {
+    const gs = S.D.memory?.goals?.[S.pf] || [];
+    $("goalHint").textContent = LABELS[S.pf] || "";
+    if (S.pf === "buy_hold") { $("goals").innerHTML = `<div class="empty">Buy & hold is the benchmark the bots are trying to beat.</div>`; return; }
+    if (!gs.length) { $("goals").innerHTML = `<div class="empty">No goals set for this bot.</div>`; return; }
+    const tag = { "on track": "win", behind: "loss", "at risk": "warn", missed: "loss", "too early": "" };
+    $("goals").innerHTML = gs.map((g) => `<div class="row"><div class="main"><div class="t1"><span>${esc(g.goal)}</span><span class="tag ${tag[g.status] || ""}">${esc(g.status)}</span></div>
+      <div class="t2"><span>${esc(g.now)}${g.text ? " · " + esc(g.text) : ""}</span></div></div></div>`).join("");
+  }
+
+  function renderMemory() {
+    const M = S.D.memory || {};
+    const j = M.journal || [];
+    $("journal").innerHTML = j.length ? j.slice(0, 14).map((e) => `<div class="journal"><div class="jd">${new Date(e.day).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" })}</div><p>${esc(e.text)}</p></div>`).join("")
+      : `<div class="empty">The first entry is written after the next daily close (07:00 your time). Every day it notes what it did, how its goals are going, and what it expects next.</div>`;
+    const sc = M.scorecard || {};
+    let h = "";
+    if (sc.resolved) {
+      const rangeOk = Math.abs(sc.range_hit_rate - 0.68) < 0.12;
+      h += `<div class="stats" style="margin-bottom:10px">
+        <div class="stat"><div class="l">Checked</div><div class="v">${sc.resolved}</div><div class="s">forecasts</div></div>
+        <div class="stat"><div class="l">Inside range</div><div class="v">${pct(sc.range_hit_rate, 0, false)}</div><div class="s">expected ≈68%</div></div>
+        <div class="stat"><div class="l">Direction right</div><div class="v">${pct(sc.direction_hit_rate, 0, false)}</div><div class="s">coin flip = 50%</div></div></div>
+        <p class="explain">Price ranges come from the options market and ${rangeOk ? "have been about as reliable as promised" : "have been " + (sc.range_hit_rate > 0.68 ? "too cautious (prices moved less than expected)" : "too narrow")}. Up/down calls score ${sc.brier.toFixed(3)} (lower is better; a coin flip scores 0.250) — ${sc.brier < 0.245 ? "slightly better than guessing" : "no better than guessing, which matches our research: nobody reliably predicts short-term direction"}.</p>`;
+    } else {
+      h += `<p class="explain">Every day the bot writes down a 7-day forecast for each coin: a price range (from what the options market expects) and a chance of being higher (from its memory of what usually happened after similar trends). A week later it checks itself. In our 2021–2026 test the ranges were reliable, but up/down calls were no better than a coin flip — this scorecard will show whether that holds live.</p>`;
+    }
+    const pend = sc.pending || [];
+    if (pend.length) h += `<div class="stack compact">${pend.map((f) => `<div class="row"><div class="coin ${coin(f.symbol)}">${coin(f.symbol)}</div><div class="main"><div class="t1"><span class="mono">${price(f.low)} – ${price(f.high)}</span><span class="mono">${(f.p_up * 100).toFixed(0)}% ↑</span></div>
+      <div class="t2"><span>made ${new Date(f.made_day).toLocaleDateString([], { day: "numeric", month: "short", timeZone: "UTC" })} at ${price(f.price)} · checks in ${f.horizon} days</span><span>${f.source.includes("options") ? "options-implied" : "recent vol"}</span></div></div></div>`).join("")}</div>`;
+    if (sc.recent?.length) h += `<p class="note">Last checked: ${sc.recent.slice(0, 6).map((r) => `${coin(r.symbol)} ${r.inside ? "✓ in range" : "✗ outside"}${(r.p_up >= 0.5) === !!r.went_up ? ", direction ✓" : ", direction ✗"}`).join(" · ")}</p>`;
+    $("forecasts").innerHTML = h;
+    const mood = M.mood || [];
+    $("mood").innerHTML = mood.length ? mood.map((m) => `<div class="row"><div class="main"><div class="t1"><span>${esc(m.name)}</span><span class="mono">${esc(m.value)}</span></div>
+      <div class="t2"><span>${esc(m.label)}</span></div><p class="note" style="margin:4px 0 0">${esc(m.note)}</p></div></div>`).join("")
+      : `<div class="empty">Forward-looking data (implied volatility, leverage crowding, sentiment) appears after the next run.</div>`;
+  }
+
   function renderLearning() {
     const L = S.D.learning; if (!L) { $("learning").innerHTML = `<div class="empty">No learning data yet.</div>`; return; }
     const m = L.meta || {}, rv = L.review;
@@ -400,7 +439,7 @@
     if (!S.D.portfolios?.length) return;
     if (!S.pf || !pf(S.pf)) S.pf = S.D.status?.primary || S.D.portfolios[0].name;
     renderStatus(); renderChips(); renderHero(); renderStats(); renderPositions(); renderThinking(); renderActivity();
-    renderTradeTab(); renderLearning(); renderLeaderboard(); renderEquity(); renderModels(); renderLog(); renderCoins(); renderSims();
+    renderTradeTab(); renderGoals(); renderMemory(); renderLearning(); renderLeaderboard(); renderEquity(); renderModels(); renderLog(); renderCoins(); renderSims();
     if (S.tab === "market") renderPriceChart();
   }
 

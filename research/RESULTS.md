@@ -83,3 +83,28 @@ Live safeguards: the model retrains daily; a **weekly self-review** re-checks th
 learned sizing off if it is clearly hurting (Sharpe more than 0.3 below full size). Fast hourly bots that have clearly
 lost money per trade after 30+ trades are **benched** (no new entries). Every closed trade gets a post-mortem label
 (rode the trend / whipsaw / stopped out / trend reversed / lost to fees) shown on the dashboard.
+
+
+---
+
+# Round 3: memory, goals, forward-looking data, crowding (October 2026)
+
+`research/lab3.py` added data that reflects what the market *expects* rather than past prices: Deribit options-implied
+volatility (DVOL, since 2021), perpetual funding rates (how crowded the long side is, since 2019) and the Crypto Fear &
+Greed index (since 2018). All judged out-of-sample 2021–2026 on top of Daily trend.
+
+| Idea | CAGR | Sharpe | Max DD | Verdict |
+|---|---|---|---|---|
+| Baseline Daily trend | 59% | 1.37 | −30% | — |
+| Size by implied volatility (options market's forecast) | 46–50% | 1.34–1.41 | **−24%** | **Adopted for Steady trend** (lower risk, lower return) |
+| Avoid crowded trades (high funding) | 33–47% | 1.02–1.30 | −30% | Hurt |
+| Avoid extreme greed (sentiment) | 51–52% | 1.31–1.34 | −30% | Hurt |
+| Explicit drawdown goal by cutting exposure | 31–43% | 1.03–1.18 | −24 to −26% | Hurt (misses recoveries) |
+| Different daily decision time (00/04/…/20 UTC) | 56–60% | 1.29–1.37 | −29 to −33% | Edge doesn't depend on the crowded midnight close |
+
+Forecasting check (2021–2026, 6,330 forecasts): 7-day **up/down** probabilities scored a Brier of 0.253 vs 0.250 for a
+coin flip — **no skill**. Options-implied ±1σ 7-day **ranges** contained the outcome 74–78% of the time (68% expected):
+useful and slightly cautious.
+
+Real engine 2021–2026: **Steady trend** (Adaptive trend + implied-vol sizing, 30% drawdown goal) — +1,643%, Sharpe 1.48,
+max drawdown **−29%** vs Adaptive trend +2,461%, Sharpe 1.50, max drawdown −40%.

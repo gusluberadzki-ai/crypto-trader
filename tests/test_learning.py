@@ -35,3 +35,22 @@ def test_postmortem_labels():
     assert classify({**base, "pnl_pct": -0.02, "exit_time": 3.6e6 * 2, "exit_reason": "signal"}) == "whipsaw"
     s = summarise([{**base, "pnl": -20, "pnl_pct": -0.02, "exit_time": 3.6e6 * 2, "exit_reason": "signal"}])
     assert "whipsaw" in s["trend"]["main_lesson"].lower()
+
+
+def test_forecast_memory_resolves(tmp_path):
+    from papertrader.config import load_config
+    from papertrader.db import DB
+    from papertrader.memory import Memory
+    cfg = load_config(None)
+    db = DB(str(tmp_path / "m.db"))
+    frames = make_sim_frames(["BTCUSDT", "ETHUSDT", "SOLUSDT"], "1h", 24 * 400, seed=5)
+    close = daily_closes(frames)
+    mem = Memory(db, cfg)
+    early = close.iloc[:-10]
+    f = mem.make_forecasts(early, {"dvol_BTC": 50.0, "dvol_ETH": 70.0})
+    assert len(f) == 3 and all(x["low"] < x["price"] < x["high"] and 0 < x["p_up"] < 1 for x in f)
+    assert mem.make_forecasts(early, {}) == []          # one set per day
+    done = mem.resolve(close)                             # 10 days later: the 7-day forecasts can be checked
+    assert len(done) == 3
+    sc = mem.scorecard()
+    assert sc["resolved"] == 3 and 0 <= sc["range_hit_rate"] <= 1 and 0 <= sc["brier"] <= 1

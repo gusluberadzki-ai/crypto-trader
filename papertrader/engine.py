@@ -24,7 +24,9 @@ from .db import DB, now_ms
 from .features import features_for_all
 from .market import make_source
 from .metrics import clean
+from .memory import Memory
 from .meta import MetaLearner
+from .signals import MarketSignals
 from .ml import ModelManager, promotion_decision, train_candidate
 from .risk import RiskManager
 from .strategies import LABELS, build_strategies, evaluate_all
@@ -88,7 +90,10 @@ class LiveEngine:
         self.models = ModelManager(cfg, cfg["storage"]["model_dir"])
         self.meta = MetaLearner()
         self._meta_day: int | None = None
-        self.strategies = build_strategies(cfg, self.models, self.meta)
+        self.signals = MarketSignals()
+        self.signals.load_db(db)
+        self.memory = Memory(db, cfg)
+        self.strategies = build_strategies(cfg, self.models, self.meta, self.signals)
         self.names: list[str] = list(cfg["strategies"]["enabled"])
         self.portfolios: dict[str, Portfolio] = {}
         self.frames: dict[str, pd.DataFrame] = {}
@@ -181,6 +186,48 @@ class LiveEngine:
             ser.index = pd.to_datetime(ser.index, unit="ms", utc=True)
             out[s] = ser[~ser.index.duplicated(keep="last")]
         return pd.DataFrame(out).sort_index()
+
+    async def update_signals(self) -> None:
+        """Forward-looking context (implied vol, funding, sentiment). Never blocks trading if it fails."""
+        if self.source.name == "sim":
+            return
+        try:
+            vals = await self.signals.fetch(self.db)
+            if not vals:
+                self.event("warn", "signals", "could not fetch implied volatility / funding / sentiment this run")
+        except Exception as exc:
+            self.event("warn", "signals", f"signal fetch failed: {exc}")
+
+    def portfolio_summaries(self) -> list[dict]:
+        out = []
+        for name, pf in self.portfolios.items():
+            eq = pf.equity(self.prices)
+            curve = [r["equity"] for r in self.db.query("SELECT equity FROM equity WHERE portfolio=? ORDER BY time", (name,))] + [eq]
+            peak, mdd = pf.start_balance, 0.0
+            for v in curve:
+                peak = max(peak, v)
+                mdd = min(mdd, v / peak - 1)
+            out.append({"name": name, "equity": eq, "total_return": eq / pf.start_balance - 1, "max_drawdown": mdd, "cagr": None})
+        return out
+
+    def daily_memory(self) -> None:
+        """Once per completed day: check last week's forecasts, make new ones, write the journal."""
+        try:
+            close = self.daily_close()
+            if close.empty:
+                return
+            day = int(close.index[-1].value // 1_000_000)
+            if self.db.kv_get("last_memory_day") == day:
+                return
+            resolved = self.memory.resolve(close)
+            forecasts = self.memory.make_forecasts(close, self.signals.values_on(day))
+            text = self.memory.write_journal(self, day, forecasts, resolved, self.portfolio_summaries())
+            self.db.kv_set("last_memory_day", day)
+            if text:
+                self.event("info", "journal", text[:300])
+        except Exception as exc:
+            log.exception("daily memory failed")
+            self.event("warn", "journal", f"could not write today's journal ({exc})")
 
     def bench_failing_bots(self, min_trades: int = 30) -> None:
         """Learning at the bot level: a fast-trading bot that has clearly been losing per trade stops opening new
@@ -581,6 +628,8 @@ class LiveEngine:
             if now_ms() - last >= every:
                 await self.retrain("scheduled")
                 await self.learn()
+            await self.update_signals()
+            self.daily_memory()
             await asyncio.sleep(300)
 
     # ================================================================ housekeeping
