@@ -91,6 +91,8 @@ class AIAgent:
         sums = {s["name"]: s for s in eng.portfolio_summaries()}
         me, bh = sums.get(NAME, {}), sums.get("buy_hold", {})
         sig = eng.signals.values_on(int(day.value // 1_000_000))
+        from .meta import rule_positions
+        rule = rule_positions(close).iloc[-1]
         market = []
         for c in close.columns:
             s = close[c].dropna()
@@ -107,6 +109,7 @@ class AIAgent:
             row["implied_vol"] = _r(dvol_for(c, sig), 1)
             size, p = eng.meta.size_for(c, int(day.value // 1_000_000))
             row["learned_win_prob_if_trend_trade"] = _r(p, 2)
+            row["trend_rule_says"] = "hold" if rule.get(c, 0) > 0 else "stay out"
             market.append(row)
         positions = []
         for s, pos in pf.positions.items():
@@ -184,6 +187,24 @@ class AIAgent:
                         errors.append(f"{model}: {type(exc).__name__}: {exc}"[:200])
         return None, "", " | ".join(errors)[:900]
 
+    REVIEW = ("Review your draft decision against the briefing before it is executed. Check: (1) every allocation matches "
+              "what your own reasoning says (if you say 'hold less' or 'caution', the number must be clearly below 0.33; "
+              "if you say 'avoid', it must be 0); (2) you did not ignore negative 30-day momentum or a 'stay out' trend rule "
+              "without a specific reason; (3) you are not trading just for the sake of it (fees). Fix any contradiction. "
+              "Reply with ONLY the corrected JSON in exactly the same format.")
+
+    async def think(self, brief: dict) -> tuple[dict | None, str, str, bool]:
+        """Draft a decision, then have the model critique and correct its own draft (catches self-contradictions)."""
+        draft, model, err = await self.ask(brief)
+        if draft is None:
+            return None, model, err, False
+        review_brief = {**brief, "your_draft_decision": draft, "instruction": self.REVIEW}
+        final, model2, err2 = await self.ask(review_brief)
+        if final is None or not isinstance(final.get("allocations"), dict):
+            return draft, model, "", False
+        changed = json.dumps(final.get("allocations"), sort_keys=True) != json.dumps(draft.get("allocations"), sort_keys=True)
+        return final, model2 or model, "", changed
+
     @staticmethod
     def validate(d: dict, symbols: list[str]) -> dict:
         alloc = {}
@@ -218,7 +239,7 @@ class AIAgent:
         if self.db.kv_get("agent_last_day") == day_ms:
             return None
         brief = self.briefing(eng, close)
-        raw, model, err = await self.ask(brief)
+        raw, model, err, revised = await self.think(brief)
         if os.environ.get("LLM_BASE_URL"):
             tries = self.db.kv_get("agent_tries", {}) or {}
             tries = {k: v for k, v in tries.items() if int(k) >= day_ms - 7 * DAY}
@@ -234,7 +255,8 @@ class AIAgent:
         self._save_forecasts(close, d, day_ms)
         hist = (self.db.kv_get("agent_history", []) or []) + [{
             "date": brief["date"], "day": day_ms, "model": model, "allocations": d["allocations"],
-            "reasoning": d["reasoning"], "per_coin": d["per_coin"], "confidence": d["confidence"], "outlook_7d": d["outlook_7d"]}]
+            "reasoning": d["reasoning"], "per_coin": d["per_coin"], "confidence": d["confidence"], "outlook_7d": d["outlook_7d"],
+            "revised_after_self_check": revised}]
         self.db.kv_set("agent_history", hist[-60:])
         self.db.kv_set("agent_last_day", day_ms)
         self.db.kv_set("agent_status", {"ok": True, "model": model, "time": int(time.time() * 1000)})

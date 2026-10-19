@@ -271,7 +271,7 @@
         <div class="stack compact">${Object.entries(L.allocations).map(([s, w]) => `<div class="row"><div class="coin ${coin(s)}">${coin(s)}</div><div class="main">
           <div class="t1"><span>${(w * 100).toFixed(0)}% of equity</span><span class="mono">${L.outlook_7d?.[s] != null ? (L.outlook_7d[s] * 100).toFixed(0) + "% ↑ in 7d" : ""}</span></div>
           <div class="t2" style="white-space:normal"><span style="white-space:normal">${esc(L.per_coin?.[s] || "")}</span></div></div></div>`).join("")}</div>
-        <p class="note">Confidence ${(L.confidence * 100).toFixed(0)}%.</p>`;
+        <p class="note">Confidence ${(L.confidence * 100).toFixed(0)}%. ${L.revised_after_self_check ? "It changed its first draft after checking it for contradictions." : "Its first draft passed its own self-check."}</p>`;
     }
     h += `<div class="learn-block" style="margin-top:10px"><div class="t1"><b>Its notebook</b><span class="faint" style="margin-left:auto;font-size:12px">notes it writes to itself</span></div>
       ${A.notes?.length ? `<ul class="lessons">${A.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : `<p class="explain" style="margin:0">Empty so far — it adds lessons as it trades and removes ones that proved wrong.</p>`}</div>`;

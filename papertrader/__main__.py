@@ -49,6 +49,7 @@ def main(argv: list[str] | None = None) -> None:
     st = sub.add_parser("step", help="one scheduled run (used by GitHub Actions): update, decide, export site")
     st.add_argument("--site", default="site", help="folder for the static dashboard")
     st.add_argument("--sim", action="store_true")
+    sub.add_parser("agent-dry-run", help="show what the AI agent would decide now, without trading")
     sub.add_parser("agent-due", help="print true if the AI agent still has to make today's decision")
     z = sub.add_parser("reset", help="reset paper portfolios")
     z.add_argument("--yes", action="store_true")
@@ -101,6 +102,23 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "step":
         from .cloud import run_step
         asyncio.run(run_step(cfg, args.site))
+
+    elif args.cmd == "agent-dry-run":
+        import json as _json
+        from .db import DB
+        from .engine import Hub, LiveEngine
+        eng = LiveEngine(cfg, DB(cfg["storage"]["db_path"]), Hub())
+        eng.load_frames()
+        eng.load_portfolios()
+
+        async def go():
+            await eng.learn()
+            close = eng.daily_close()
+            brief = eng.agent.briefing(eng, close)
+            draft, model, err = await eng.agent.ask(brief)
+            final, model2, err2, revised = await eng.agent.think(brief) if draft is not None else (None, "", err, False)
+            print(_json.dumps({"briefing": brief, "draft": draft, "final": final, "revised": revised, "error": err or err2}, indent=1, default=str))
+        asyncio.run(go())
 
     elif args.cmd == "agent-due":
         import time as _t
