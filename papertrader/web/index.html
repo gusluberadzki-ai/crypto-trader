@@ -2,118 +2,137 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0d12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PaperTrader">
 <title>PaperTrader</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23141a24'/><path d='M7 21l6-6 4 4 8-9' stroke='%238b9dff' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <header class="topbar">
   <div class="brand">
-    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--surface-2)"/><path d="M7 21l6-6 4 4 8-9" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <svg viewBox="0 0 32 32" width="24" height="24" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--surface-2)"/><path d="M7 21l6-6 4 4 8-9" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span>PaperTrader</span>
-    <span class="paper-badge" title="Simulated fills only. No exchange keys, no real orders.">PAPER TRADING</span>
+    <span class="paper-badge" title="Simulated trades only. No real money.">PAPER</span>
   </div>
-  <div class="top-meta">
-    <span class="pill" id="feedPill"><i class="dot"></i><span id="feedText">connecting…</span></span>
-    <span class="meta" id="metaBar">—</span>
-    <label class="pf-select">
-      <span>Portfolio</span>
-      <select id="pfSelect"></select>
-    </label>
-  </div>
+  <span class="pill" id="feedPill"><i class="dot"></i><span id="feedText">loading…</span></span>
 </header>
 
+<nav class="tabbar" id="tabbar">
+  <button data-tab="overview" class="active"><svg viewBox="0 0 24 24"><path d="M3 12l9-8 9 8M5 10v10h14V10"/></svg><span>Overview</span></button>
+  <button data-tab="trades"><svg viewBox="0 0 24 24"><path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg><span>Trades</span></button>
+  <button data-tab="strategies"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Strategies</span></button>
+  <button data-tab="market"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-9M15 7h5v5"/></svg><span>Market</span></button>
+  <button data-tab="sims"><svg viewBox="0 0 24 24"><path d="M12 8v4l3 2M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"/></svg><span>Simulations</span></button>
+</nav>
+
 <main>
-  <div class="halt-banner" id="haltBanner" hidden>
-    <span id="haltText"></span>
-    <button class="btn small" id="resumeBtn">Resume trading</button>
-  </div>
+  <!-- ======================= OVERVIEW ======================= -->
+  <section class="tab active" id="tab-overview">
+    <div class="chips" id="pfChips"></div>
 
-  <section class="kpis" id="kpis">
-    <div class="kpi"><div class="kpi-label">Equity</div><div class="kpi-value" id="kEquity">—</div><div class="kpi-sub" id="kEquitySub">&nbsp;</div></div>
-    <div class="kpi"><div class="kpi-label">Total P/L</div><div class="kpi-value" id="kPnl">—</div><div class="kpi-sub" id="kPnlSub">&nbsp;</div></div>
-    <div class="kpi"><div class="kpi-label">vs Buy &amp; Hold</div><div class="kpi-value" id="kVsBh">—</div><div class="kpi-sub" id="kVsBhSub">&nbsp;</div></div>
-    <div class="kpi"><div class="kpi-label">Max drawdown</div><div class="kpi-value" id="kDd">—</div><div class="kpi-sub" id="kDdSub">&nbsp;</div></div>
-    <div class="kpi"><div class="kpi-label">Win rate</div><div class="kpi-value" id="kWin">—</div><div class="kpi-sub" id="kWinSub">&nbsp;</div></div>
-    <div class="kpi"><div class="kpi-label">Exposure</div><div class="kpi-value" id="kExp">—</div><div class="kpi-sub" id="kExpSub">&nbsp;</div></div>
-  </section>
-
-  <section class="grid main-grid">
-    <div class="card chart-card">
-      <div class="card-head">
-        <div class="tabs" id="symbolTabs"></div>
-        <div class="legend">
-          <span><i style="background:var(--ema20)"></i>EMA 20</span>
-          <span><i style="background:var(--ema50)"></i>EMA 50</span>
-          <span><i class="tri up"></i>buy</span>
-          <span><i class="tri down"></i>sell</span>
+    <div class="card hero">
+      <div class="hero-top">
+        <div>
+          <div class="label" id="heroLabel">—</div>
+          <div class="hero-value" id="heroEquity">—</div>
+          <div class="hero-sub"><span id="heroPnl"></span><span class="sep">·</span><span id="heroVs"></span></div>
         </div>
+        <div class="hero-status" id="heroStatus"></div>
       </div>
-      <div id="priceChart" class="chart"></div>
+      <div id="heroChart" class="chart hero-chart"></div>
+      <div class="hero-foot" id="heroFoot"></div>
     </div>
 
-    <div class="card feed-card">
-      <div class="card-head">
-        <h2>AI decisions</h2>
-        <label class="toggle"><input type="checkbox" id="feedAll"> all strategies</label>
-      </div>
-      <div class="feed" id="feed"><div class="empty">Waiting for the first closed candle…</div></div>
+    <div class="halt-banner" id="haltBanner" hidden><span id="haltText"></span><button class="btn small live-only" id="resumeBtn">Resume</button></div>
+
+    <div class="stats" id="statGrid"></div>
+
+    <div class="card">
+      <div class="card-head"><h2>Open positions</h2><span class="hint" id="posHint"></span></div>
+      <div id="positions" class="stack"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>What it's thinking now</h2><span class="hint" id="thinkHint"></span></div>
+      <div id="thinking" class="stack"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Recent activity</h2><button class="btn link" data-goto="trades">all trades →</button></div>
+      <div id="activity" class="stack"></div>
     </div>
   </section>
 
-  <section class="grid two">
+  <!-- ======================= TRADES ======================= -->
+  <section class="tab" id="tab-trades">
+    <div class="chips" id="tradeChips"></div>
+    <div class="stats" id="tradeStats"></div>
     <div class="card">
-      <div class="card-head"><h2>Strategy comparison</h2><span class="hint">each strategy trades its own $10k · click a row to inspect it</span></div>
-      <div class="table-wrap"><table class="tbl" id="cmpTable"></table></div>
+      <div class="card-head"><h2>Trade history</h2><span class="hint">tap a trade for the reasoning</span></div>
+      <div id="tradeList" class="stack"></div>
+    </div>
+  </section>
+
+  <!-- ======================= STRATEGIES ======================= -->
+  <section class="tab" id="tab-strategies">
+    <div class="card">
+      <div class="card-head"><h2>Leaderboard</h2><span class="hint">each starts with $10,000</span></div>
+      <div id="leaderboard" class="stack"></div>
       <p class="note" id="sigNote"></p>
     </div>
     <div class="card">
-      <div class="card-head"><h2>Equity curves</h2><div class="legend" id="eqLegend"></div></div>
-      <div id="equityChart" class="chart short"></div>
-    </div>
-  </section>
-
-  <section class="grid two">
-    <div class="card">
-      <div class="card-head"><h2>Open positions</h2><span class="hint" id="posHint"></span></div>
-      <div class="table-wrap"><table class="tbl" id="posTable"></table></div>
+      <div class="card-head"><h2>Equity over time</h2></div>
+      <div class="legend" id="eqLegend"></div>
+      <div id="equityChart" class="chart mid"></div>
     </div>
     <div class="card">
-      <div class="card-head"><h2>Model &amp; learning</h2><button class="btn small" id="retrainBtn">Retrain now</button></div>
-      <div class="model-summary" id="modelSummary"></div>
-      <div class="table-wrap scroll-y"><table class="tbl compact" id="modelTable"></table></div>
+      <div class="card-head"><h2>Machine-learning model</h2><button class="btn small live-only" id="retrainBtn">Retrain now</button></div>
+      <p class="explain" id="modelExplain"></p>
+      <div id="modelList" class="stack compact"></div>
     </div>
+    <details class="card">
+      <summary><h2>System log</h2><span class="hint" id="sysHint"></span></summary>
+      <div class="log" id="eventLog"></div>
+    </details>
   </section>
 
-  <section class="card">
-    <div class="card-head"><h2>Trade history</h2><span class="hint">click a trade for the full reasoning</span></div>
-    <div class="table-wrap scroll-y tall"><table class="tbl" id="tradeTable"></table></div>
-  </section>
-
-  <section class="grid two">
+  <!-- ======================= MARKET ======================= -->
+  <section class="tab" id="tab-market">
+    <div class="coins" id="coins"></div>
     <div class="card">
       <div class="card-head">
-        <h2>Backtests</h2>
-        <div class="bt-controls">
-          <select id="btSelect"></select>
-          <input type="number" id="btDays" min="14" max="1000" value="180" title="days of history to test">
-          <button class="btn small" id="btRun">Run backtest</button>
+        <h2 id="chartTitle">Price</h2>
+        <div class="legend">
+          <span><i style="background:var(--ema20)"></i>EMA 20</span>
+          <span><i style="background:var(--ema50)"></i>EMA 50</span>
+          <span><i class="tri up"></i>buy</span><span><i class="tri down"></i>sell</span>
         </div>
       </div>
-      <div class="table-wrap"><table class="tbl compact" id="btTable"></table></div>
-      <div id="btChart" class="chart mini"></div>
-      <p class="note" id="btNote"></p>
-    </div>
-    <div class="card">
-      <div class="card-head"><h2>System log</h2><span class="hint" id="sysHint"></span></div>
-      <div class="log" id="eventLog"></div>
+      <div id="priceChart" class="chart tall"></div>
+      <p class="note">Arrows show trades by the strategy selected on the Overview tab. Dashed lines: entry, stop-loss and target of an open position.</p>
     </div>
   </section>
 
-  <footer>Simulation only — no exchange account, no API keys, no real orders. Simulated or backtested results do not predict future returns.</footer>
+  <!-- ======================= SIMULATIONS ======================= -->
+  <section class="tab" id="tab-sims">
+    <div class="card intro">
+      <h2>What would have happened?</h2>
+      <p class="explain">The same bot replayed over the last 180 days of real Binance prices, hour by hour, with fees, slippage and the ML model retrained only on data it would have had at the time.</p>
+    </div>
+    <div id="simRuns" class="stack"></div>
+    <div class="card">
+      <div class="card-head"><h2>Weekly backtests</h2><span class="hint">re-run automatically every 7 days</span></div>
+      <div id="btList" class="stack compact"></div>
+    </div>
+  </section>
+
+  <footer>Simulation only — no exchange account, no real money. Past or simulated results don't predict future returns.<br>Charts by <a href="https://www.tradingview.com/" target="_blank" rel="noopener">TradingView</a> Lightweight Charts.</footer>
 </main>
 
 <div class="toasts" id="toasts"></div>

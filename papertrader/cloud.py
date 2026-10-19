@@ -88,6 +88,8 @@ def export_site(cfg: dict, eng: LiveEngine, out: Path) -> None:
         "models": get("/api/models"),
         "events": get("/api/events?limit=150"),
         "backtests": get("/api/backtests"),
+        "latest": get("/api/latest"),
+        "sims": get("/api/sims"),
         "candles": {}, "markers": {}, "chart_positions": {}, "backtest_details": {},
     }
     for s in cfg["symbols"]:

@@ -115,7 +115,10 @@ def run_backtest(cfg: dict, frames: dict[str, pd.DataFrame], days: int | None = 
         stats = equity_stats(curves[n], bpy, bal)
         tr = trade_stats([c.pnl for c in pf.closed], [c.pnl_pct for c in pf.closed],
                          [(c.exit_time - c.entry_time) / 3_600_000 for c in pf.closed], pf.fees_paid)
-        results[n] = {**stats, **tr, "open_positions": len(pf.positions),
+        trade_list = [{"symbol": c.symbol, "entry_time": c.entry_time, "exit_time": c.exit_time,
+                       "entry_price": c.entry_price, "exit_price": c.exit_price, "pnl": c.pnl, "pnl_pct": c.pnl_pct,
+                       "reason": c.exit_reason} for c in pf.closed]
+        results[n] = {**stats, **tr, "open_positions": len(pf.positions), "trade_list": trade_list,
                       "vs_buy_hold": stats["total_return"] - bh_ret,
                       "actions": dict(actions.get(n, {}))}
     stride = max(1, len(test_times) // 600)

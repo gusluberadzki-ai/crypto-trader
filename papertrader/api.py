@@ -237,6 +237,26 @@ def create_app(cfg: dict, start_engine: bool = True, engine: LiveEngine | None =
             r["details"] = json.loads(r["details"] or "{}")
         return clean(rows)
 
+    @app.get("/api/latest")
+    def latest():
+        """Most recent decision (including HOLD) for every strategy and coin: what each bot is thinking now."""
+        rows = db.query(
+            "SELECT d.id, d.time, d.bar_time, d.portfolio, d.symbol, d.stance, d.action, d.confidence, d.price, "
+            "d.explanation FROM decisions d JOIN (SELECT portfolio, symbol, MAX(id) AS m FROM decisions "
+            "GROUP BY portfolio, symbol) x ON d.id = x.m ORDER BY d.portfolio, d.symbol")
+        return clean(rows)
+
+    @app.get("/api/sims")
+    def sims():
+        path = Path(cfg.get("sims_path", "results/sims.json"))
+        if not path.exists():
+            return {"runs": []}
+        data = json.loads(path.read_text())
+        for run in data.get("runs", []):  # keep the payload small for phones
+            for r in run.get("results", {}).values():
+                r["trade_list"] = r.get("trade_list", [])[-150:]
+        return data
+
     @app.get("/api/equity")
     def equity(max_points: int = 800):
         rows = db.query("SELECT time, portfolio, equity FROM equity ORDER BY time")
