@@ -1,0 +1,181 @@
+2026-10-19 17:07:16,142 INFO    papertrader.engine: loaded 10 portfolios with 9 open positions
+{
+ "briefing": {
+  "date": "2026-10-18",
+  "your_portfolio": {
+   "equity": 9957.66,
+   "cash": 95.65,
+   "return_since_start": -0.0042,
+   "max_drawdown": -0.0042,
+   "buy_hold_return_same_period": -0.0152,
+   "positions": [
+    {
+     "coin": "BTCUSDT",
+     "weight": 0.331,
+     "entry": 82057.16,
+     "pnl_pct": -0.0024,
+     "safety_stop": 77840.26
+    },
+    {
+     "coin": "ETHUSDT",
+     "weight": 0.33,
+     "entry": 2405.29,
+     "pnl_pct": -0.0056,
+     "safety_stop": 2225.13
+    },
+    {
+     "coin": "SOLUSDT",
+     "weight": 0.33,
+     "entry": 104.55,
+     "pnl_pct": -0.0049,
+     "safety_stop": 94.95
+    }
+   ],
+   "paused": false
+  },
+  "market": [
+   {
+    "coin": "BTCUSDT",
+    "price": 82116.0,
+    "ret_1d": 0.0077,
+    "ret_7d": -0.0198,
+    "ret_30d": 0.0152,
+    "ret_90d": 0.2584,
+    "vs_sma50": 0.0084,
+    "vs_sma100": 0.1061,
+    "vs_sma200": 0.1321,
+    "realized_vol_30d": 0.326,
+    "implied_vol": 38.8,
+    "learned_win_prob_if_trend_trade": 0.66,
+    "trend_rule_says": "hold"
+   },
+   {
+    "coin": "ETHUSDT",
+    "price": 2410.31,
+    "ret_1d": 0.0031,
+    "ret_7d": -0.0499,
+    "ret_30d": -0.0773,
+    "ret_90d": 0.2654,
+    "vs_sma50": -0.0554,
+    "vs_sma100": 0.0577,
+    "vs_sma200": 0.1218,
+    "realized_vol_30d": 0.36,
+    "implied_vol": 53.4,
+    "learned_win_prob_if_trend_trade": null,
+    "trend_rule_says": "stay out"
+   },
+   {
+    "coin": "SOLUSDT",
+    "price": 104.11,
+    "ret_1d": 0.0062,
+    "ret_7d": -0.065,
+    "ret_30d": -0.0764,
+    "ret_90d": 0.3373,
+    "vs_sma50": -0.0481,
+    "vs_sma100": 0.0983,
+    "vs_sma200": 0.1882,
+    "realized_vol_30d": 0.471,
+    "implied_vol": 69.4,
+    "learned_win_prob_if_trend_trade": 0.76,
+    "trend_rule_says": "stay out"
+   }
+  ],
+  "market_mood": {
+   "fear_greed_0_100": 53.0,
+   "funding_btc_annual": 0.0475,
+   "funding_eth_annual": 0.0482
+  },
+  "research_bots": {
+   "adaptive_trend": {
+    "holding": [
+     "BTCUSDT"
+    ],
+    "return": -0.0013
+   },
+   "steady_trend": {
+    "holding": [
+     "BTCUSDT"
+    ],
+    "return": -0.002
+   },
+   "breakout": {
+    "holding": [],
+    "return": 0.0
+   }
+  },
+  "your_memory": {
+   "notes": [
+    "0: 19 Oct: High implied volatility in SOL suggests caution, even though it's performing well.",
+    "1: 19 Oct: Avoiding crashes by holding coins above their 100-day averages has historically worked."
+   ],
+   "recent_decisions": [
+    {
+     "date": "2026-10-18",
+     "allocations": {
+      "BTCUSDT": 0.33,
+      "ETHUSDT": 0.33,
+      "SOLUSDT": 0.33
+     },
+     "reasoning": "BTC and ETH are above their 100-day averages, suggesting a slow trend. SOL is also performing well and above its 100-day average. Given the high implied volatility, we'll hold less SOL to mitigate risk."
+    }
+   ],
+   "closed_trades": [],
+   "your_forecast_accuracy": "no forecasts checked yet",
+   "range_forecasts_hit_rate": null
+  }
+ },
+ "draft": {
+  "allocations": {
+   "BTCUSDT": 0.5,
+   "ETHUSDT": 0,
+   "SOLUSDT": 0.5
+  },
+  "reasoning": "BTC is above its 100-day average and showing a positive trend. ETH and SOL are below their 100-day averages and underperforming. High implied volatility in SOL suggests caution.",
+  "per_coin": {
+   "BTCUSDT": "Above 100-day average, positive trend.",
+   "ETHUSDT": "Below 100-day average, underperforming.",
+   "SOLUSDT": "Above 100-day average but high implied volatility."
+  },
+  "outlook_7d": {
+   "BTCUSDT": 0.6,
+   "ETHUSDT": 0.3,
+   "SOLUSDT": 0.4
+  },
+  "memory_add": [
+   "2: 18 Oct: Reduced SOL allocation due to high implied volatility and underperformance."
+  ],
+  "memory_remove": [
+   0
+  ],
+  "confidence": 0.8
+ },
+ "final": {
+  "allocations": {
+   "BTCUSDT": 0.33,
+   "ETHUSDT": 0.0,
+   "SOLUSDT": 0.0
+  },
+  "reasoning": "BTC is above its 100-day average and up over 30 days, suggesting a slow trend. ETH and SOL are below their 50-day averages and have high implied volatility, indicating higher risk. Stick to BTC to avoid potential crashes.",
+  "per_coin": {
+   "BTCUSDT": "Above 100-day average, slow trend likely.",
+   "ETHUSDT": "Below 50-day average, high implied vol.",
+   "SOLUSDT": "Below 50-day average, high implied vol."
+  },
+  "outlook_7d": {
+   "BTCUSDT": 0.6,
+   "ETHUSDT": 0.4,
+   "SOLUSDT": 0.4
+  },
+  "memory_add": [
+   "19 Oct: BTC above 100-day average, slow trend likely.",
+   "19 Oct: Avoid high implied volatility to mitigate risk."
+  ],
+  "memory_remove": [
+   0,
+   1
+  ],
+  "confidence": 0.8
+ },
+ "revised": false,
+ "error": ""
+}
