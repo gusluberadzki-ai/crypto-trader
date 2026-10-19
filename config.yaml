@@ -1,0 +1,83 @@
+# PaperTrader configuration
+# ---------------------------------------------------------------
+# This system is PAPER TRADING ONLY. It reads public market data and
+# simulates fills locally. There is no code path that places real orders,
+# and no API keys are accepted. "mode" must stay "paper".
+mode: paper
+
+symbols: [BTCUSDT, ETHUSDT, SOLUSDT]
+interval: 1h              # candle size the strategies trade on (1m, 5m, 15m, 1h, 4h)
+history_days: 365         # history backfilled on first start (used for ML training)
+starting_balance: 10000   # virtual USD per strategy portfolio
+
+data:
+  source: binance         # binance = live public data, sim = synthetic demo data
+  rest_base: https://data-api.binance.vision        # public market-data-only host
+  ws_base: wss://data-stream.binance.vision         # public market-data-only stream
+  stale_after_sec: 90     # no WebSocket message for this long -> reconnect
+  ws_failures_before_polling: 5
+  poll_seconds: 15        # REST polling interval used while WebSocket is down
+  poll_mode_minutes: 10   # how long to stay in polling mode before retrying WebSocket
+  sim_seconds_per_bar: 6  # sim mode only: how fast synthetic candles close
+
+costs:
+  fee_rate: 0.001         # 0.10% taker fee per side (Binance spot default)
+  slippage_bps: 5         # fixed slippage per fill, in basis points
+  slippage_vol_factor: 0.05  # extra slippage = factor x ATR%  (bigger in volatile markets)
+
+risk:
+  risk_per_trade: 0.01    # max equity lost if the stop is hit (scaled by confidence)
+  atr_stop_mult: 2.0      # initial stop = entry - 2 x ATR
+  take_profit_rr: 4.0     # take profit at 4R (set to null to disable)
+  trail_activate_atr: 1.5 # trailing stop switches on after +1.5 ATR
+  trail_atr_mult: 2.5     # trailing stop distance below the highest price
+  max_position_pct: 0.30  # max 30% of equity in one coin
+  max_total_exposure: 0.90
+  max_open_positions: 3
+  min_notional: 25
+  daily_loss_limit: 0.03  # no new entries for the rest of the UTC day after -3%
+  max_drawdown_halt: 0.20 # halt new entries if equity falls 20% below its peak
+  cooldown_bars: 3        # bars to wait after a stop-out before re-entering that coin
+  min_confidence: 0.55
+
+strategies:
+  enabled: [ensemble, trend, mean_reversion, ml]   # each gets its own $10k portfolio
+  primary: ensemble       # shown first on the dashboard
+
+trend:
+  adx_min: 20
+
+mean_reversion:
+  rsi_entry: 30
+  rsi_exit: 55
+
+ml:
+  horizon: 6              # predict the return over the next 6 bars
+  label_threshold: 0.004  # "up" means > +0.4% after 6 bars (covers fees + slippage)
+  buy_quantile: 0.85      # buy when probability is in the top 15% of validation predictions
+  sell_quantile: 0.50     # exit when probability falls below the validation median
+  validation_bars: 720    # most recent bars per coin held out for validation (~30 days on 1h)
+  min_train_rows: 2000
+  min_auc: 0.51           # candidate must beat this on validation to be promoted
+  min_val_trades: 30
+  promotion_margin: 0.0   # candidate expectancy must beat the active model by this much
+  retrain_every_hours: 24
+
+ensemble:
+  weights: {trend: 0.40, mean_reversion: 0.20, ml: 0.40}
+  buy_score: 0.30
+  sell_score: -0.20
+  max_vol_percentile: 0.95   # skip new entries in the most extreme 5% volatility regime
+
+backtest:
+  days: 180
+  retrain_every_days: 14
+
+server:
+  host: 127.0.0.1         # use 0.0.0.0 to view the dashboard from another device on your network
+  port: 8000
+
+storage:
+  db_path: data/papertrader.db
+  model_dir: data/models
+  log_dir: data/logs
