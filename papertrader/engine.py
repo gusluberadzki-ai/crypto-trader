@@ -29,7 +29,7 @@ from .risk import RiskManager
 from .strategies import LABELS, build_strategies, evaluate_all
 
 log = logging.getLogger("papertrader.engine")
-FRAME_BARS = 1500
+FRAME_BARS = 5200  # ~216 days of hourly candles: daily strategies need 200-day averages
 BENCH = "buy_hold"
 
 
@@ -330,7 +330,7 @@ class LiveEngine:
                 pf.positions[tr["symbol"]] = Position(
                     tr["symbol"], tr["qty"], tr["entry_price"], tr["entry_time"], tr["entry_fee"], tr["stop"],
                     tr["initial_stop"], tr["take_profit"], tr["highest"], tr["atr"], tr["id"],
-                    tr["entry_explanation"] or "")
+                    tr["entry_explanation"] or "", bool(tr["trail"] if tr["trail"] is not None else 1))
             self.portfolios[name] = pf
         n_open = sum(len(p.positions) for p in self.portfolios.values())
         self.event("info", "engine", f"loaded {len(self.portfolios)} portfolios with {n_open} open positions")
@@ -349,9 +349,9 @@ class LiveEngine:
     def persist_open(self, pf: Portfolio, pos: Position) -> None:
         cur = self.db.execute(
             "INSERT INTO trades(portfolio, symbol, status, qty, entry_time, entry_price, entry_fee, stop, "
-            "initial_stop, take_profit, highest, atr, entry_explanation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "initial_stop, take_profit, highest, atr, entry_explanation, trail) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (pf.name, pos.symbol, "open", pos.qty, now_ms(), pos.entry_price, pos.entry_fee, pos.stop,
-             pos.initial_stop, pos.take_profit, pos.highest, pos.atr, pos.entry_explanation))
+             pos.initial_stop, pos.take_profit, pos.highest, pos.atr, pos.entry_explanation, int(pos.trail)))
         pos.trade_id = cur.lastrowid
         self.save_portfolio(pf)
 

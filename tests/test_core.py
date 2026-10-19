@@ -106,7 +106,7 @@ def test_ml_split_purges_overlap(cfg, frames):
 def test_backtest_runs_and_benchmark_is_sane(cfg, frames):
     res = run_backtest(cfg, frames, days=60)
     r = res["results"]
-    assert set(r) == {"ensemble", "trend", "mean_reversion", "ml", "buy_hold"}
+    assert set(r) == {*cfg["strategies"]["enabled"], "buy_hold"}
     rets = [frames[s]["close"].iloc[-1] / frames[s]["close"].loc[res["start_time"]] - 1 for s in frames]
     assert r["buy_hold"]["total_return"] == pytest.approx(np.mean(rets), abs=0.01)
     for name, v in r.items():

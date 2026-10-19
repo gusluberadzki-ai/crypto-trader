@@ -92,7 +92,7 @@ function build(d, famOverride) {
     const c = parent.addStack(); c.layoutVertically(); c.size = new Size(width, 0);
     for (const it of items) { const r = c.addStack(); if (alignRight) r.addSpacer(); render(r, it); if (!alignRight) r.addSpacer(); }
   };
-  const short = { ensemble: "Ensemble", trend: "Trend", mean_reversion: "Mean rev", ml: "ML" };
+  const short = { daily_trend: "Daily", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly", mean_reversion: "Mean rev", ml: "ML" };
   col(row, 62, d.portfolios, (r, p) => text(r, short[p.name] || p.label, 10, MUTED), false);
   col(row, 44, d.portfolios, (r, p) => text(r, pct(p.return), 10, colr(p.return), false, true), true);
   row.addSpacer();

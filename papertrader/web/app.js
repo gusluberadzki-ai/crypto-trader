@@ -5,9 +5,11 @@
   const STATIC = !!window.PT_STATIC;
   if (STATIC) document.body.classList.add("static");
 
-  const COLORS = { ensemble: "#8b9dff", trend: "#36c2b4", mean_reversion: "#f5b14c", ml: "#d48cff", buy_hold: "#8a94a6" };
-  const LABELS = { ensemble: "Ensemble", trend: "Trend", mean_reversion: "Mean reversion", ml: "Machine learning", buy_hold: "Buy & hold" };
+  const COLORS = { daily_trend: "#2ebd85", breakout: "#5fb8ff", ensemble: "#8b9dff", trend: "#36c2b4", mean_reversion: "#f5b14c", ml: "#d48cff", buy_hold: "#8a94a6" };
+  const LABELS = { daily_trend: "Daily trend", breakout: "Breakout", ensemble: "Ensemble", trend: "Hourly trend", mean_reversion: "Mean reversion", ml: "Machine learning", buy_hold: "Buy & hold" };
   const DESC = {
+    daily_trend: "Research winner. Holds a coin while it's above its 100-day average and up over 30 days; altcoins only while BTC is in an uptrend. Checks once a day.",
+    breakout: "Buys when a coin closes above its 30-day high, sells when it drops below its 20-day low. Same BTC filter. Checks once a day.",
     ensemble: "Combines the trend, dip-buying and ML votes and only buys when they agree strongly enough.",
     trend: "Rides established uptrends (moving averages, MACD, ADX) and sells when the trend breaks.",
     mean_reversion: "Waits for sharp oversold dips in an intact uptrend, buys, and sells on the bounce.",
@@ -118,7 +120,9 @@
     const col = COLORS[S.pf];
     ch.series.main.applyOptions({ lineColor: col, topColor: col + "55", bottomColor: col + "00" });
     const live = (arr, val) => { const a = [...(arr || [])]; const t = Math.floor(Date.now() / 1000); if (a.length && t > a[a.length - 1].time) a.push({ time: t, value: val }); return a; };
-    ch.series.main.setData(live(series[S.pf], p.equity));
+    const pts = live(series[S.pf], p.equity);
+    $("heroChart").style.visibility = pts.length >= 3 ? "visible" : "hidden";
+    ch.series.main.setData(pts);
     ch.series.bh.setData(S.pf === "buy_hold" ? [] : live(series.buy_hold, bh?.equity));
     ch.c.timeScale().fitContent();
     $("haltBanner").hidden = !p.halted; $("haltText").textContent = p.halted ? `${LABELS[S.pf]} paused new trades: ${p.halt_reason}` : "";
@@ -162,7 +166,7 @@
     $("thinkHint").textContent = rows.length ? `at the ${clock(rows[0].bar_time + intervalMs(S.D.status?.interval || "1h"))} candle` : "";
     if (!rows.length) { $("thinking").innerHTML = `<div class="empty">No decisions yet.</div>`; return; }
     $("thinking").innerHTML = rows.map((d) => {
-      const text = d.explanation.replace(/^(HOLD|BUY|SELL|BLOCKED)\s+[^.]*?at \$[\d,.]+\.?\s*/, "");
+      const text = d.explanation.replace(/^(HOLD|BUY|SELL|BLOCKED)\s+[^.]*?at \$[\d,.]+\.?\s*/, "").replace(/^\(confidence \d+%\)\.\s*Why:\s*/, "Buying because ");
       return `<div class="think">${coinBadge(d.symbol)}<div class="main" style="min-width:0"><div class="t1">${coin(d.symbol)} <span class="tag ${d.action}">${d.action}</span><span class="when">${ago(d.time)}</span></div>
         <p>${esc(text)}</p></div></div>`;
     }).join("");

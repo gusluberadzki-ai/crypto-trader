@@ -97,6 +97,45 @@ def compute_features(df: pd.DataFrame, btc_close: pd.Series | None = None) -> pd
     return f.replace([np.inf, -np.inf], np.nan)
 
 
+DAY_MS = 86_400_000
+
+
+def daily_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Daily (UTC) candles built from hourly ones, with daily indicators."""
+    idx = pd.to_datetime(df.index, unit="ms", utc=True)
+    h = df.set_axis(idx)
+    d = h.resample("1D").agg({"open": "first", "high": "max", "low": "min", "close": "last"}).dropna()
+    out = pd.DataFrame(index=d.index)
+    out["d_close"] = d["close"]
+    out["d_sma100"] = d["close"].rolling(100).mean()
+    out["d_sma200"] = d["close"].rolling(200).mean()
+    out["d_mom30"] = d["close"].pct_change(30)
+    out["d_high30"] = d["high"].rolling(30).max().shift(1)   # highest high of the 30 days BEFORE this one
+    out["d_low20"] = d["low"].rolling(20).min().shift(1)
+    tr = pd.concat([d["high"] - d["low"], (d["high"] - d["close"].shift()).abs(), (d["low"] - d["close"].shift()).abs()], axis=1).max(axis=1)
+    out["d_atr"] = tr.ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
+    out["day_ms"] = ((d.index - pd.Timestamp(0, tz="UTC")) // pd.Timedelta(milliseconds=1)).astype("int64")
+    return out.set_index("day_ms")
+
+
+def attach_daily(f: pd.DataFrame, daily: pd.DataFrame, prefix: str = "") -> None:
+    """For each hourly row, attach the latest COMPLETED day's values (a day completes when its 23:00 bar closes)."""
+    key = ((f.index.to_numpy() + 3_600_000) // DAY_MS) * DAY_MS - DAY_MS
+    vals = daily.reindex(key)
+    for c in daily.columns:
+        f[prefix + c] = vals[c].to_numpy()
+    f[prefix + "d_day"] = key
+
+
 def features_for_all(frames: dict[str, pd.DataFrame], btc_symbol: str = "BTCUSDT") -> dict[str, pd.DataFrame]:
     btc = frames[btc_symbol]["close"] if btc_symbol in frames else None
-    return {s: compute_features(df, None if s == btc_symbol else btc) for s, df in frames.items()}
+    out = {s: compute_features(df, None if s == btc_symbol else btc) for s, df in frames.items()}
+    dailies = {s: daily_frame(df) for s, df in frames.items()}
+    for s, f in out.items():
+        attach_daily(f, dailies[s])
+        if btc_symbol in dailies:
+            b = dailies[btc_symbol]
+            ok = (b["d_close"] > b["d_sma200"]).where(b["d_sma200"].notna())
+            key = ((f.index.to_numpy() + 3_600_000) // DAY_MS) * DAY_MS - DAY_MS
+            f["btc_trend_ok"] = ok.reindex(key).to_numpy()
+    return out

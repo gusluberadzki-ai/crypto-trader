@@ -102,20 +102,29 @@ class TradingCore:
 
         ok, block = self.risk.can_open(pf, symbol, t, prices, sig.confidence)
         atr = float(row.get("atr", float("nan")))
-        plan = self.risk.size(pf, price, atr, sig.confidence, prices) if ok else None
+        daily = "target_weight" in sig.details
+        if daily:
+            plan = self.risk.size_target(pf, price, sig.details["target_weight"], sig.details["stop"], prices) if ok else None
+        else:
+            plan = self.risk.size(pf, price, atr, sig.confidence, prices) if ok else None
         if not ok or plan is None:
             reason = block or "position would be below the minimum size"
             text = f"BLOCKED {head}. The signal was bullish ({why}) but risk rules prevented a trade: {reason}."
             return Decision(pf.name, symbol, t, sig.stance, "BLOCKED", sig.confidence, price, text,
                             self._details(sig, row))
 
+        stop_desc = "safety stop, 3x daily ATR" if daily else f"{self.risk.r['atr_stop_mult']:.1f}x ATR"
         risk_text = (f"Risk plan: ${plan['notional']:,.0f} position ({plan['notional'] / plan['equity'] * 100:.0f}% of "
                      f"equity, limited by {plan['limited_by']}), stop {fmt_price(plan['stop'])} "
-                     f"({self.risk.r['atr_stop_mult']:.1f}x ATR), risking ${plan['risk_amount']:,.0f}")
+                     f"({stop_desc}), risking ${plan['risk_amount']:,.0f}")
         if plan["take_profit"]:
             risk_text += f", take-profit {fmt_price(plan['take_profit'])}"
         text = f"BUY {head} (confidence {sig.confidence * 100:.0f}%). Why: {why}. {risk_text}."
-        pos = self.broker.buy(pf, symbol, plan["notional"], price, t, atr, plan["stop"], plan["take_profit"], text)
+        if daily:
+            pos = self.broker.buy(pf, symbol, plan["notional"], price, t, sig.details["daily_atr"], plan["stop"], None, text,
+                                  trail=False, slip_atr=atr)
+        else:
+            pos = self.broker.buy(pf, symbol, plan["notional"], price, t, atr, plan["stop"], plan["take_profit"], text)
         if pos is None:
             return Decision(pf.name, symbol, t, sig.stance, "BLOCKED", sig.confidence, price,
                             f"BLOCKED {head}: not enough cash.", self._details(sig, row))

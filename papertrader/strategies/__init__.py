@@ -166,9 +166,62 @@ class EnsembleStrategy:
         return Signal(self.name, "neutral", conf, score, reasons, details)
 
 
-BASE_ORDER = ["trend", "mean_reversion", "ml"]
+class DailyTrendStrategy:
+    """Researched winner: hold a coin while it is above its 100-day average AND up over the last 30 days.
+    Altcoins only while BTC itself is above its 200-day average. Decides on completed daily candles."""
+    name = "daily_trend"
+    label = "Daily trend"
+
+    def __init__(self, cfg: dict):
+        self.weight = 1.0 / max(1, len(cfg["symbols"]))
+        self.stop_atr = cfg.get("daily", {}).get("stop_atr", 3.0)
+
+    def evaluate(self, symbol: str, row: pd.Series, ctx: dict) -> Signal:
+        if missing(row, ["d_close", "d_sma100", "d_mom30", "d_atr"]):
+            return Signal(self.name, reasons=["needs 100+ days of history"], available=False)
+        above = row.d_close > row.d_sma100
+        mom = row.d_mom30 > 0
+        btc_ok = symbol == "BTCUSDT" or bool(row.get("btc_trend_ok") == 1.0)
+        reasons = [f"daily close {'above' if above else 'below'} its 100-day average ({(row.d_close / row.d_sma100 - 1) * 100:+.1f}%)",
+                   f"30-day change {row.d_mom30 * 100:+.1f}%"]
+        if symbol != "BTCUSDT":
+            reasons.append(f"BTC {'is' if btc_ok else 'is not'} above its 200-day average")
+        details = {"target_weight": self.weight, "stop": row.close - self.stop_atr * row.d_atr, "daily_atr": row.d_atr}
+        score = (0.5 if above else -0.5) + (0.5 if mom else -0.5)
+        if above and mom and btc_ok:
+            return Signal(self.name, "bull", 0.75, score, reasons, details)
+        return Signal(self.name, "bear", 0.75, score, reasons, details)
+
+
+class BreakoutStrategy:
+    """Researched runner-up: buy when price breaks above its 30-day high, sell below its 20-day low.
+    Same BTC filter for altcoins. Decides on completed daily candles."""
+    name = "breakout"
+    label = "Breakout"
+
+    def __init__(self, cfg: dict):
+        self.weight = 1.0 / max(1, len(cfg["symbols"]))
+        self.stop_atr = cfg.get("daily", {}).get("stop_atr", 3.0)
+
+    def evaluate(self, symbol: str, row: pd.Series, ctx: dict) -> Signal:
+        if missing(row, ["d_close", "d_high30", "d_low20", "d_atr"]):
+            return Signal(self.name, reasons=["needs 30+ days of history"], available=False)
+        btc_ok = symbol == "BTCUSDT" or bool(row.get("btc_trend_ok") == 1.0)
+        details = {"target_weight": self.weight, "stop": row.close - self.stop_atr * row.d_atr, "daily_atr": row.d_atr}
+        span = f"30-day high {row.d_high30:,.2f}, 20-day low {row.d_low20:,.2f}"
+        if not btc_ok:
+            return Signal(self.name, "bear", 0.75, -1, [f"BTC is below its 200-day average, so altcoins stay out ({span})"], details)
+        if row.d_close > row.d_high30:
+            return Signal(self.name, "bull", 0.75, 1, [f"daily close broke above the {span.split(',')[0]}"], details)
+        if row.d_close < row.d_low20:
+            return Signal(self.name, "bear", 0.75, -1, [f"daily close fell below the {span.split(', ')[1]}"], details)
+        return Signal(self.name, "neutral", 0.5, 0, [f"no breakout: price between the {span}"], details)
+
+
+BASE_ORDER = ["trend", "mean_reversion", "ml", "daily_trend", "breakout"]
 LABELS = {"trend": TrendStrategy.label, "mean_reversion": MeanReversionStrategy.label, "ml": MLStrategy.label,
-          "ensemble": EnsembleStrategy.label, "buy_hold": "Buy & hold (benchmark)"}
+          "ensemble": EnsembleStrategy.label, "buy_hold": "Buy & hold (benchmark)",
+          "daily_trend": DailyTrendStrategy.label, "breakout": BreakoutStrategy.label}
 
 
 def build_strategies(cfg: dict, models) -> dict:
@@ -177,6 +230,8 @@ def build_strategies(cfg: dict, models) -> dict:
         "mean_reversion": MeanReversionStrategy(cfg),
         "ml": MLStrategy(cfg, models),
         "ensemble": EnsembleStrategy(cfg),
+        "daily_trend": DailyTrendStrategy(cfg),
+        "breakout": BreakoutStrategy(cfg),
     }
 
 

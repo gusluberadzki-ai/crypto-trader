@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS trades(
     qty REAL, entry_time INTEGER, entry_price REAL, entry_fee REAL,
     stop REAL, initial_stop REAL, take_profit REAL, highest REAL, atr REAL,
     exit_time INTEGER, exit_price REAL, exit_fee REAL, pnl REAL, pnl_pct REAL, exit_reason TEXT,
-    entry_explanation TEXT, exit_explanation TEXT);
+    entry_explanation TEXT, exit_explanation TEXT, trail INTEGER DEFAULT 1);
 CREATE INDEX IF NOT EXISTS ix_trades_pf ON trades(portfolio, status);
 CREATE TABLE IF NOT EXISTS decisions(
     id INTEGER PRIMARY KEY AUTOINCREMENT, time INTEGER, bar_time INTEGER, portfolio TEXT,
@@ -61,6 +61,9 @@ class DB:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.executescript(SCHEMA)
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(trades)")}
+        if "trail" not in cols:  # migration for databases created before daily strategies existed
+            self.conn.execute("ALTER TABLE trades ADD COLUMN trail INTEGER DEFAULT 1")
 
     # ---- generic helpers -------------------------------------------------
     def execute(self, sql: str, params=()) -> sqlite3.Cursor:

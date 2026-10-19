@@ -21,6 +21,7 @@ class Position:
     atr: float
     trade_id: int | None = None
     entry_explanation: str = ""
+    trail: bool = True
 
     @property
     def cost(self) -> float:
@@ -94,19 +95,20 @@ class PaperBroker:
         return self.slip_bps / 1e4 + extra
 
     def buy(self, pf: Portfolio, symbol: str, notional: float, price: float, t: int, atr: float,
-            stop: float, take_profit: float | None, explanation: str = "") -> Position | None:
+            stop: float, take_profit: float | None, explanation: str = "", trail: bool = True,
+            slip_atr: float | None = None) -> Position | None:
         if symbol in pf.positions or notional <= 0:
             return None
         notional = min(notional, pf.cash / (1 + self.fee_rate))
         if notional <= 0:
             return None
-        fill = price * (1 + self.slippage(atr / price if price else None))
+        fill = price * (1 + self.slippage((slip_atr if slip_atr is not None else atr) / price if price else None))
         qty = notional / fill
         fee = notional * self.fee_rate
         pf.cash -= notional + fee
         pf.fees_paid += fee
         pos = Position(symbol, qty, fill, t, fee, stop, stop, take_profit, fill, atr,
-                       entry_explanation=explanation)
+                       entry_explanation=explanation, trail=trail)
         pf.positions[symbol] = pos
         return pos
 
@@ -115,7 +117,8 @@ class PaperBroker:
         pos = pf.positions.pop(symbol, None)
         if pos is None:
             return None
-        slip = self.slippage(pos.atr / price if price else None) if apply_slippage else 0.0
+        atr = pos.atr if pos.trail else pos.atr / 4.9  # daily ATR -> ~hourly ATR for slippage
+        slip = self.slippage(atr / price if price else None) if apply_slippage else 0.0
         fill = price * (1 - slip)
         gross = pos.qty * fill
         fee = gross * self.fee_rate
