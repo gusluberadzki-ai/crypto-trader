@@ -10,7 +10,7 @@ const pct = (v, d = 1) => {
   const x = Math.abs(v * 100) < Math.pow(10, -d) / 2 ? 0 : v * 100;
   return (x > 0 ? "+" : x < 0 ? "−" : "") + Math.abs(x).toFixed(d) + "%";
 };
-const col = (v) => v == null || v === 0 ? MUTED : v > 0 ? UP : DOWN;
+const colr = (v) => v == null || v === 0 ? MUTED : v > 0 ? UP : DOWN;
 const money = (v) => "$" + Math.round(v).toLocaleString("en-US");
 const px = (p) => p == null ? "–" : p >= 1000 ? Math.round(p).toLocaleString("en-US") : p.toFixed(p >= 10 ? 1 : 3);
 const ago = (ms) => { const m = (Date.now() - ms) / 60000; return m < 60 ? `${Math.round(m)}m ago` : `${(m / 60).toFixed(1)}h ago`; };
@@ -34,8 +34,8 @@ function text(stack, str, size, color = TEXT, bold = false, mono = false) {
   return t;
 }
 
-function build(d) {
-  const fam = config.widgetFamily || "medium";
+function build(d, famOverride) {
+  const fam = famOverride || config.widgetFamily || "medium";
   const w = new ListWidget();
   w.url = d ? d.url : BASE;
   w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000);
@@ -79,7 +79,7 @@ function build(d) {
   w.addSpacer(6);
   text(w, money(main.equity), fam === "small" ? 22 : 24, TEXT, true, true);
   const sub = w.addStack();
-  text(sub, pct(main.return, 2), 12, col(main.return), true, true);
+  text(sub, pct(main.return, 2), 12, colr(main.return), true, true);
   text(sub, `  vs B&H ${pct(d.buy_hold, 2)}`, 12, MUTED, false, true);
   if (fam === "small") {
     w.addSpacer();
@@ -88,21 +88,17 @@ function build(d) {
   }
   w.addSpacer(8);
   const row = w.addStack();
-  const left = row.addStack(); left.layoutVertically();
-  for (const p of d.portfolios) {
-    const r = left.addStack();
-    const short = { ensemble: "Ensemble", trend: "Trend", mean_reversion: "Mean rev", ml: "ML" }[p.name] || p.label;
-    text(r, short.padEnd(9), 10, MUTED, false, true);
-    text(r, pct(p.return).padStart(7), 10, col(p.return), false, true);
-  }
+  const col = (parent, width, items, render, alignRight) => {
+    const c = parent.addStack(); c.layoutVertically(); c.size = new Size(width, 0);
+    for (const it of items) { const r = c.addStack(); if (alignRight) r.addSpacer(); render(r, it); if (!alignRight) r.addSpacer(); }
+  };
+  const short = { ensemble: "Ensemble", trend: "Trend", mean_reversion: "Mean rev", ml: "ML" };
+  col(row, 62, d.portfolios, (r, p) => text(r, short[p.name] || p.label, 10, MUTED), false);
+  col(row, 44, d.portfolios, (r, p) => text(r, pct(p.return), 10, colr(p.return), false, true), true);
   row.addSpacer();
-  const right = row.addStack(); right.layoutVertically();
-  for (const p of d.prices) {
-    const r = right.addStack();
-    text(r, p.symbol.padEnd(4), 10, MUTED, false, true);
-    text(r, px(p.price).padStart(7), 10, TEXT, false, true);
-    text(r, " " + pct(p.change), 10, col(p.change), false, true);
-  }
+  col(row, 30, d.prices, (r, p) => text(r, p.symbol, 10, MUTED), false);
+  col(row, 52, d.prices, (r, p) => text(r, px(p.price), 10, TEXT, false, true), true);
+  col(row, 44, d.prices, (r, p) => text(r, pct(p.change), 10, colr(p.change), false, true), true);
   w.addSpacer();
   return w;
 }
@@ -110,5 +106,16 @@ function build(d) {
 const data = await load();
 const widget = build(data);
 if (config.runsInWidget) Script.setWidget(widget);
-else await widget.presentMedium();
+else {
+  // In the app: let you preview any size
+  const pick = new Alert(); pick.title = "Preview size";
+  ["Medium", "Small", "Lock screen (rectangle)", "Lock screen (round)"].forEach((o) => pick.addAction(o));
+  const i = await pick.presentSheet();
+  const fam = ["medium", "small", "accessoryRectangular", "accessoryCircular"][i] || "medium";
+  const wv = build(data, fam);
+  if (fam === "small") await wv.presentSmall();
+  else if (fam === "accessoryRectangular" && wv.presentAccessoryRectangular) await wv.presentAccessoryRectangular();
+  else if (fam === "accessoryCircular" && wv.presentAccessoryCircular) await wv.presentAccessoryCircular();
+  else await wv.presentMedium();
+}
 Script.complete();
