@@ -46,3 +46,13 @@ def test_agent_briefing_decision_and_memory(tmp_path, monkeypatch):
         await eng.source.close()
 
     asyncio.run(run())
+
+
+def test_agent_notes_do_not_repeat(tmp_path):
+    db = DB(str(tmp_path / "n.db"))
+    agent = AIAgent.__new__(AIAgent)
+    agent.db = db
+    db.kv_set("agent_notes", ["20 Oct: BTC trend is key.", "20 Oct: Watch SOL.", "21 Oct: BTC trend is key."])
+    agent._update_memory({"memory_remove": [], "memory_add": ["BTC trend is key", "New lesson."]})
+    n = agent.notes()
+    assert len(n) == 3 and n[0] == "20 Oct: BTC trend is key." and n[-1].endswith("New lesson.")

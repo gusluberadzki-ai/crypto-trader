@@ -265,11 +265,21 @@ class AIAgent:
         return d["reasoning"]
 
     def _update_memory(self, d: dict) -> None:
-        notes = self.notes()
-        notes = [n for i, n in enumerate(notes) if i not in set(d["memory_remove"])]
+        def bare(n: str) -> str:                      # note text without its "21 Oct: " date, for comparing
+            return re.sub(r"^\d{1,2} \w{3}: ", "", n).strip().rstrip(".").lower()
+
+        drop = set(d["memory_remove"])
+        notes, seen = [], set()
+        for i, n in enumerate(self.notes()):
+            if i in drop or bare(n) in seen:          # deleted by the agent, or a repeat of an older note
+                continue
+            notes.append(n)
+            seen.add(bare(n))
         for n in d["memory_add"]:
-            if n and n not in notes:
+            n = (n or "").strip()
+            if n and bare(n) not in seen:
                 notes.append(f"{datetime.now(timezone.utc):%d %b}: {n}")
+                seen.add(bare(n))
         self.db.kv_set("agent_notes", notes[-15:])
 
     def _save_forecasts(self, close: pd.DataFrame, d: dict, day_ms: int) -> None:
