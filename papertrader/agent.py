@@ -364,7 +364,7 @@ class AIAgent:
             notes.append(n)
             seen.add(bare(n))
         for n in d["memory_add"]:
-            n = (n or "").strip()
+            n = re.sub(r"^\d{1,2} \w{3}: ", "", (n or "").strip())   # the model sometimes adds its own date
             if n and bare(n) not in seen:
                 notes.append(f"{datetime.now(timezone.utc):%d %b}: {n}")
                 seen.add(bare(n))
