@@ -56,3 +56,24 @@ def test_agent_notes_do_not_repeat(tmp_path):
     agent._update_memory({"memory_remove": [], "memory_add": ["BTC trend is key", "New lesson."]})
     n = agent.notes()
     assert len(n) == 3 and n[0] == "20 Oct: BTC trend is key." and n[-1].endswith("New lesson.")
+
+
+def test_fact_checker_catches_wrong_claims():
+    from papertrader.agent import coin_facts, fact_check
+    market = [
+        {"coin": "BTCUSDT", "price": 81343.5, "vs_sma50": -0.007, "vs_sma100": 0.071, "vs_sma200": 0.02,
+         "ret_7d": -0.03, "ret_30d": -0.026, "implied_vol": 45.0, "trend_rule_says": "stay out"},
+        {"coin": "ETHUSDT", "price": 2359.7, "vs_sma50": -0.07, "vs_sma100": 0.012, "vs_sma200": -0.1,
+         "ret_7d": -0.04, "ret_30d": -0.122, "implied_vol": 65.0, "trend_rule_says": "stay out"},
+        {"coin": "SOLUSDT", "price": 102.4, "vs_sma50": -0.065, "vs_sma100": 0.05, "vs_sma200": -0.2,
+         "ret_7d": -0.04, "ret_30d": -0.138, "implied_vol": 80.0, "trend_rule_says": "stay out"},
+    ]
+    assert "DOWN" in coin_facts(market[0]) and "ABOVE its 100-day" in coin_facts(market[0])
+    bad = {"reasoning": "BTC is above its 100-day average and up over the last 30 days. ETH and SOL are below their "
+                        "100-day averages and have high implied volatility.",
+           "per_coin": {"SOLUSDT": "Below 100-day average."}}
+    errs = fact_check(bad, market)
+    assert len(errs) == 3 and any("30 days" in e for e in errs) and any("SOL" in e and "100-day" in e for e in errs)
+    good = {"reasoning": "BTC is above its 100-day average but down over 30 days, so the trend rule says stay out. "
+                         "ETH and SOL are below their 50-day averages.", "per_coin": {"BTCUSDT": "Below 50-day average."}}
+    assert fact_check(good, market) == []

@@ -117,7 +117,7 @@ def main(argv: list[str] | None = None) -> None:
             brief = eng.agent.briefing(eng, close)
             draft, model, err = await eng.agent.ask(brief)
             final, model2, err2, revised = await eng.agent.think(brief) if draft is not None else (None, "", err, False)
-            print(_json.dumps({"briefing": brief, "draft": draft, "final": final, "revised": revised, "error": err or err2}, indent=1, default=str))
+            print(_json.dumps({"briefing": brief, "draft": draft, "final": final, "revised": revised, "fact_check": eng.agent.last_check, "error": err or err2}, indent=1, default=str))
         asyncio.run(go())
 
     elif args.cmd == "agent-due":

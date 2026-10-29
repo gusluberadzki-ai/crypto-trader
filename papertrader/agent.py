@@ -49,9 +49,13 @@ What decades of evidence and this bot's own research (2019-2026 data) show - wei
 - High implied volatility means bigger expected swings: hold less when it is extreme.
 - Trading on sentiment (fear & greed) or funding-rate crowding alone did NOT help in tests; use them only as context.
 
-Use your memory: your past decisions, results and notes are included. Learn from mistakes, keep notes short and
-specific, remove notes that turned out wrong. Think independently - the rule-based bots' positions are information,
-not instructions.
+The "facts" section states today's verified numbers in plain words. Base every claim on it - never on what you said
+on earlier days, because the market changes. Write today's reasoning fresh. Your claims are checked automatically
+against the facts, and wrong claims make you redo the decision.
+
+Use your memory: your past decisions, what happened after them, and your notes are included. Learn from mistakes,
+keep notes short and specific, remove notes that turned out wrong (notes that are no longer true today, too). Think
+independently - the rule-based bots' positions are information, not instructions.
 
 Reply with ONLY a JSON object, no markdown:
 {"allocations": {"BTCUSDT": 0.0-0.33, "ETHUSDT": 0.0-0.33, "SOLUSDT": 0.0-0.33},
@@ -68,12 +72,64 @@ def _r(x, n=4):
     return None if x is None or (isinstance(x, float) and (math.isnan(x) or math.isinf(x))) else round(float(x), n)
 
 
+COIN_WORDS = {"BTCUSDT": r"\b(btc|bitcoin)\b", "ETHUSDT": r"\b(eth|ether|ethereum)\b", "SOLUSDT": r"\b(sol|solana)\b"}
+UP_WORDS = r"(positive|up|rising|gain|gaining|gained|strong|higher|uptrend|increase|increased)"
+DOWN_WORDS = r"(negative|down|falling|fell|loss|lost|weak|weaker|lower|downtrend|decrease|decreased|dropped|drop)"
+
+
+def coin_facts(row: dict) -> str:
+    """One plain-English line of verified facts for a coin (from a briefing market row)."""
+    name = row["coin"][:-4]
+    parts = [f"{name}: price {row['price']:,.2f}"]
+    for n in (50, 100, 200):
+        v = row.get(f"vs_sma{n}")
+        if v is not None:
+            parts.append(f"{abs(v) * 100:.1f}% {'ABOVE' if v >= 0 else 'BELOW'} its {n}-day average")
+    for n in (7, 30):
+        v = row.get(f"ret_{n}d")
+        if v is not None:
+            parts.append(f"{n}-day change {v * 100:+.1f}% ({'UP' if v > 0 else 'DOWN'})")
+    if row.get("implied_vol") is not None:
+        parts.append(f"implied volatility {row['implied_vol']:.0f}%")
+    parts.append(f"slow trend rule says: {row['trend_rule_says'].upper()} "
+                 "(it holds only when above the 100-day average AND the 30-day change is positive)")
+    return "; ".join(parts) + "."
+
+
+def fact_check(d: dict, market: list[dict]) -> list[str]:
+    """Find claims in the decision text that contradict the verified numbers. Returns a list of plain-English errors."""
+    rows = {r["coin"]: r for r in market}
+    texts = [(None, d.get("reasoning") or "")] + [(s, t or "") for s, t in (d.get("per_coin") or {}).items()]
+    errors = []
+    for coin_key, text in texts:
+        for clause in re.split(r"[.;!?]|\bbut\b|\bwhile\b|\bwhereas\b|\bhowever\b", text.lower()):
+            coins = [c for c, pat in COIN_WORDS.items() if re.search(pat, clause)]
+            if not coins and coin_key in rows:
+                coins = [coin_key]
+            for m in re.finditer(r"\b(above|below)\b[^,]{0,25}?\b(50|100|200)[- ]?day", clause):
+                for c in coins:
+                    v = (rows.get(c) or {}).get(f"vs_sma{m.group(2)}")
+                    if v is not None and (v >= 0) != (m.group(1) == "above"):
+                        errors.append(f"You said {c[:-4]} is {m.group(1)} its {m.group(2)}-day average, but it is "
+                                      f"{abs(v) * 100:.1f}% {'above' if v >= 0 else 'below'}.")
+            if re.search(r"30[- ]day|30 days|month", clause):
+                up, down = re.search(UP_WORDS, clause), re.search(DOWN_WORDS, clause)
+                if bool(up) != bool(down):
+                    for c in coins:
+                        v = (rows.get(c) or {}).get("ret_30d")
+                        if v is not None and abs(v) > 0.005 and (v > 0) != bool(up):
+                            errors.append(f"You said {c[:-4]} is {'up' if up else 'down'} over 30 days, but its 30-day "
+                                          f"change is {v * 100:+.1f}%.")
+    return list(dict.fromkeys(errors))
+
+
 class AIAgent:
     def __init__(self, cfg: dict, db):
         self.cfg, self.db = cfg, db
         a = cfg.get("agent") or {}
         self.models = a.get("models") or ["qwen2.5:14b"]
         self.enabled = a.get("enabled", True)
+        self.last_check: dict = {}
 
     # ------------------------------------------------------------------ memory
     def notes(self) -> list[str]:
@@ -125,8 +181,19 @@ class AIAgent:
                                "WHERE portfolio=? AND status='closed' ORDER BY exit_time DESC LIMIT 8", (NAME,))
         sc = eng.memory.scorecard()
         mine = [r for r in self.db.query("SELECT p_up, went_up FROM forecasts WHERE resolved=1 AND source='AI agent'")]
+        recent = []
+        for h in self.history(5):                       # what it decided, and what the market did afterwards
+            t0 = pd.Timestamp(h["day"], unit="ms", tz="UTC") if h.get("day") else None
+            since = {}
+            if t0 is not None and t0 in close.index:
+                for c in close.columns:
+                    a, b = close.loc[t0, c], close[c].iloc[-1]
+                    if pd.notna(a) and pd.notna(b):
+                        since[c] = _r(b / a - 1)
+            recent.append({"date": h["date"], "allocations": h["allocations"], "coin_moves_since": since})
         return {
             "date": day.strftime("%Y-%m-%d"),
+            "facts": [coin_facts(r) for r in market],
             "your_portfolio": {"equity": round(eq, 2), "cash": round(pf.cash, 2), "return_since_start": _r(me.get("total_return")),
                                "max_drawdown": _r(me.get("max_drawdown")), "buy_hold_return_same_period": _r(bh.get("total_return")),
                                "positions": positions, "paused": pf.halted},
@@ -136,7 +203,7 @@ class AIAgent:
             "research_bots": others,
             "your_memory": {
                 "notes": [f"{i}: {n}" for i, n in enumerate(self.notes())],
-                "recent_decisions": [{"date": h["date"], "allocations": h["allocations"], "reasoning": h["reasoning"][:220]} for h in self.history(5)],
+                "recent_decisions": recent,
                 "closed_trades": [{"coin": t["symbol"], "pnl_pct": _r(t["pnl_pct"]), "days": round((t["exit_time"] - t["entry_time"]) / DAY, 1),
                                    "why": CATEGORIES[classify(t)]} for t in trades],
                 "your_forecast_accuracy": ({"checked": len(mine), "brier": _r(sum((m["p_up"] - m["went_up"]) ** 2 for m in mine) / len(mine), 3),
@@ -199,11 +266,30 @@ class AIAgent:
         if draft is None:
             return None, model, err, False
         review_brief = {**brief, "your_draft_decision": draft, "instruction": self.REVIEW}
+        errs = fact_check(draft, brief.get("market", []))
+        if errs:
+            review_brief["fact_checker_found_errors"] = errs
         final, model2, err2 = await self.ask(review_brief)
         if final is None or not isinstance(final.get("allocations"), dict):
-            return draft, model, "", False
+            final, model2 = draft, model
+        found = list(errs)
+        left = fact_check(final, brief.get("market", []))
+        if left:                                      # still wrong: one more, stricter correction round
+            found += [e for e in left if e not in found]
+            fix_brief = {**brief, "your_draft_decision": final, "fact_checker_found_errors": left,
+                         "instruction": self.FIX}
+            fixed, model3, _ = await self.ask(fix_brief)
+            if fixed is not None and isinstance(fixed.get("allocations"), dict):
+                final, model2 = fixed, model3 or model2
+                left = fact_check(final, brief.get("market", []))
+        self.last_check = {"errors_found": found, "errors_left": left}
         changed = json.dumps(final.get("allocations"), sort_keys=True) != json.dumps(draft.get("allocations"), sort_keys=True)
         return final, model2 or model, "", changed
+
+    FIX = ("An automatic fact-checker compared your decision with the verified numbers in 'facts' and found the errors "
+           "listed in 'fact_checker_found_errors'. Rewrite your reasoning and per_coin text using only the facts, and "
+           "re-decide any allocation that relied on a wrong fact (e.g. holding a coin because you wrongly thought its "
+           "trend was up). Reply with ONLY the corrected JSON in exactly the same format.")
 
     @staticmethod
     def validate(d: dict, symbols: list[str]) -> dict:
@@ -256,7 +342,9 @@ class AIAgent:
         hist = (self.db.kv_get("agent_history", []) or []) + [{
             "date": brief["date"], "day": day_ms, "model": model, "allocations": d["allocations"],
             "reasoning": d["reasoning"], "per_coin": d["per_coin"], "confidence": d["confidence"], "outlook_7d": d["outlook_7d"],
-            "revised_after_self_check": revised}]
+            "revised_after_self_check": revised,
+            "fact_errors_found": self.last_check.get("errors_found", []),
+            "fact_errors_left": self.last_check.get("errors_left", [])}]
         self.db.kv_set("agent_history", hist[-60:])
         self.db.kv_set("agent_last_day", day_ms)
         self.db.kv_set("agent_status", {"ok": True, "model": model, "time": int(time.time() * 1000)})
