@@ -1,0 +1,242 @@
+2026-10-29 07:07:56,975 INFO    papertrader.engine: loaded 10 portfolios with 4 open positions
+{
+ "briefing": {
+  "date": "2026-10-28",
+  "facts": [
+   "BTC: price 81,343.50; 0.7% BELOW its 50-day average; 7.1% ABOVE its 100-day average; 11.3% ABOVE its 200-day average; 7-day change -3.3% (DOWN); 30-day change -2.6% (DOWN); implied volatility 37%; slow trend rule says: STAY OUT (it holds only when above the 100-day average AND the 30-day change is positive).",
+   "ETH: price 2,359.68; 6.9% BELOW its 50-day average; 1.2% ABOVE its 100-day average; 9.2% ABOVE its 200-day average; 7-day change -4.6% (DOWN); 30-day change -12.2% (DOWN); implied volatility 52%; slow trend rule says: STAY OUT (it holds only when above the 100-day average AND the 30-day change is positive).",
+   "SOL: price 102.44; 6.4% BELOW its 50-day average; 5.1% ABOVE its 100-day average; 15.5% ABOVE its 200-day average; 7-day change -4.2% (DOWN); 30-day change -13.8% (DOWN); implied volatility 68%; slow trend rule says: STAY OUT (it holds only when above the 100-day average AND the 30-day change is positive)."
+  ],
+  "your_portfolio": {
+   "equity": 9906.63,
+   "cash": 6679.95,
+   "return_since_start": -0.0093,
+   "max_drawdown": -0.0195,
+   "buy_hold_return_same_period": -0.0439,
+   "positions": [
+    {
+     "coin": "BTCUSDT",
+     "weight": 0.326,
+     "entry": 82057.16,
+     "pnl_pct": -0.0232,
+     "safety_stop": 77840.26
+    }
+   ],
+   "paused": false
+  },
+  "market": [
+   {
+    "coin": "BTCUSDT",
+    "price": 81343.5,
+    "ret_1d": 0.0054,
+    "ret_7d": -0.0327,
+    "ret_30d": -0.0258,
+    "ret_90d": 0.2557,
+    "vs_sma50": -0.0073,
+    "vs_sma100": 0.0707,
+    "vs_sma200": 0.1126,
+    "realized_vol_30d": 0.248,
+    "implied_vol": 37.3,
+    "learned_win_prob_if_trend_trade": null,
+    "trend_rule_says": "stay out"
+   },
+   {
+    "coin": "ETHUSDT",
+    "price": 2359.68,
+    "ret_1d": 0.004,
+    "ret_7d": -0.0461,
+    "ret_30d": -0.1224,
+    "ret_90d": 0.2301,
+    "vs_sma50": -0.0694,
+    "vs_sma100": 0.0119,
+    "vs_sma200": 0.0924,
+    "realized_vol_30d": 0.331,
+    "implied_vol": 52.5,
+    "learned_win_prob_if_trend_trade": null,
+    "trend_rule_says": "stay out"
+   },
+   {
+    "coin": "SOLUSDT",
+    "price": 102.44,
+    "ret_1d": 0.0108,
+    "ret_7d": -0.0423,
+    "ret_30d": -0.1384,
+    "ret_90d": 0.3748,
+    "vs_sma50": -0.0643,
+    "vs_sma100": 0.0508,
+    "vs_sma200": 0.1552,
+    "realized_vol_30d": 0.35,
+    "implied_vol": 68.2,
+    "learned_win_prob_if_trend_trade": null,
+    "trend_rule_says": "stay out"
+   }
+  ],
+  "market_mood": {
+   "fear_greed_0_100": 51.0,
+   "funding_btc_annual": 0.0921,
+   "funding_eth_annual": 0.0439
+  },
+  "research_bots": {
+   "adaptive_trend": {
+    "holding": [],
+    "return": 0.0068
+   },
+   "steady_trend": {
+    "holding": [],
+    "return": 0.0061
+   },
+   "breakout": {
+    "holding": [],
+    "return": 0.0
+   }
+  },
+  "your_memory": {
+   "notes": [
+    "0: 29 Oct: BTC's positive trend and position above 100-day average are key."
+   ],
+   "recent_decisions": [
+    {
+     "date": "2026-10-24",
+     "allocations": {
+      "BTCUSDT": 0.33,
+      "ETHUSDT": 0.0,
+      "SOLUSDT": 0.0
+     },
+     "coin_moves_since": {
+      "BTCUSDT": 0.0056,
+      "ETHUSDT": 0.0004,
+      "SOLUSDT": 0.0006
+     }
+    },
+    {
+     "date": "2026-10-25",
+     "allocations": {
+      "BTCUSDT": 0.33,
+      "ETHUSDT": 0.0,
+      "SOLUSDT": 0.0
+     },
+     "coin_moves_since": {
+      "BTCUSDT": 0.0148,
+      "ETHUSDT": 0.0128,
+      "SOLUSDT": 0.0103
+     }
+    },
+    {
+     "date": "2026-10-26",
+     "allocations": {
+      "BTCUSDT": 0.33,
+      "ETHUSDT": 0.0,
+      "SOLUSDT": 0.0
+     },
+     "coin_moves_since": {
+      "BTCUSDT": 0.0149,
+      "ETHUSDT": 0.0151,
+      "SOLUSDT": 0.0148
+     }
+    },
+    {
+     "date": "2026-10-27",
+     "allocations": {
+      "BTCUSDT": 0.33,
+      "ETHUSDT": 0.0,
+      "SOLUSDT": 0.0
+     },
+     "coin_moves_since": {
+      "BTCUSDT": 0.0054,
+      "ETHUSDT": 0.004,
+      "SOLUSDT": 0.0108
+     }
+    },
+    {
+     "date": "2026-10-28",
+     "allocations": {
+      "BTCUSDT": 0.33,
+      "ETHUSDT": 0.0,
+      "SOLUSDT": 0.0
+     },
+     "coin_moves_since": {
+      "BTCUSDT": 0.0,
+      "ETHUSDT": 0.0,
+      "SOLUSDT": 0.0
+     }
+    }
+   ],
+   "closed_trades": [
+    {
+     "coin": "ETHUSDT",
+     "pnl_pct": -0.0041,
+     "days": 0.4,
+     "why": "Lost to fees"
+    },
+    {
+     "coin": "SOLUSDT",
+     "pnl_pct": -0.0009,
+     "days": 0.4,
+     "why": "Lost to fees"
+    }
+   ],
+   "your_forecast_accuracy": {
+    "checked": 12,
+    "brier": 0.234,
+    "coin_flip_brier": 0.25
+   },
+   "range_forecasts_hit_rate": 1.0
+  }
+ },
+ "draft": {
+  "allocations": {
+   "BTCUSDT": 0.0,
+   "ETHUSDT": 0.0,
+   "SOLUSDT": 0.0
+  },
+  "reasoning": "All coins are below their 50-day averages and have negative 30-day changes, violating the slow trend rule. Implied volatility is high, suggesting potential for large price swings. Stay out to avoid losses.",
+  "per_coin": {
+   "BTCUSDT": "Price is below 50-day average and 30-day change is negative.",
+   "ETHUSDT": "Price is below 50-day average and 30-day change is negative.",
+   "SOLUSDT": "Price is below 50-day average and 30-day change is negative."
+  },
+  "outlook_7d": {
+   "BTCUSDT": 0.4,
+   "ETHUSDT": 0.3,
+   "SOLUSDT": 0.3
+  },
+  "memory_add": [
+   "29 Oct: BTC's positive trend and position above 100-day average are no longer valid."
+  ],
+  "memory_remove": [
+   0
+  ],
+  "confidence": 0.8
+ },
+ "final": {
+  "allocations": {
+   "BTCUSDT": 0.0,
+   "ETHUSDT": 0.0,
+   "SOLUSDT": 0.0
+  },
+  "reasoning": "BTC, ETH, and SOL are all below their 50-day averages and have negative 30-day changes, violating the slow trend rule. High implied volatility suggests high risk. Stay out to avoid losses.",
+  "per_coin": {
+   "BTCUSDT": "Price down, below 50-day average, negative 30-day change, high implied vol.",
+   "ETHUSDT": "Price down, below 50-day average, negative 30-day change, high implied vol.",
+   "SOLUSDT": "Price down, below 50-day average, negative 30-day change, high implied vol."
+  },
+  "outlook_7d": {
+   "BTCUSDT": 0.4,
+   "ETHUSDT": 0.4,
+   "SOLUSDT": 0.4
+  },
+  "memory_add": [
+   "29 Oct: BTC's positive trend and position above 100-day average are no longer key."
+  ],
+  "memory_remove": [
+   0
+  ],
+  "confidence": 0.8
+ },
+ "revised": false,
+ "fact_check": {
+  "errors_found": [],
+  "errors_left": []
+ },
+ "error": ""
+}
